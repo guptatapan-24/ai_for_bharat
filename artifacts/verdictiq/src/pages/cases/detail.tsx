@@ -585,7 +585,7 @@ export default function CaseDetail() {
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={isDeleting}
-              onClick={() => deleteCase(caseId)}
+              onClick={() => deleteCase({ id: caseId })}
             >
               {isDeleting ? "Deleting…" : "Delete Case"}
             </AlertDialogAction>

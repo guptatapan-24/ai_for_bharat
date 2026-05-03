@@ -181,7 +181,7 @@ export default function CaseList() {
             <AlertDialogAction
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={isDeleting}
-              onClick={() => deletingCase && deleteCase(deletingCase.id)}
+              onClick={() => deletingCase && deleteCase({ id: deletingCase.id })}
             >
               {isDeleting ? "Deleting…" : "Delete Case"}
             </AlertDialogAction>
