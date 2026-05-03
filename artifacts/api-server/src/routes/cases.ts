@@ -509,6 +509,30 @@ router.patch("/cases/:id", async (req, res) => {
   });
 });
 
+router.delete("/cases/:id", async (req, res) => {
+  const parsed = GetCaseParams.safeParse({ id: Number(req.params.id) });
+  if (!parsed.success) return res.status(400).json({ error: "Invalid id" });
+
+  const caseRow = await db
+    .select()
+    .from(casesTable)
+    .where(eq(casesTable.id, parsed.data.id))
+    .then((r) => r[0]);
+
+  if (!caseRow) return res.status(404).json({ error: "Case not found" });
+
+  // Delete in FK-safe order: action_items → directives → audit_log → judgments → case
+  await db.delete(actionItemsTable).where(eq(actionItemsTable.caseId, caseRow.id));
+  await db.delete(directivesTable).where(eq(directivesTable.caseId, caseRow.id));
+  await db.delete(auditLogTable).where(eq(auditLogTable.caseId, caseRow.id));
+  await db.delete(judgmentsTable).where(eq(judgmentsTable.caseId, caseRow.id));
+  await db.delete(casesTable).where(eq(casesTable.id, caseRow.id));
+
+  req.log.info({ caseId: caseRow.id, caseNumber: caseRow.caseNumber }, "Case deleted");
+
+  return res.json({ success: true, message: `Case ${caseRow.caseNumber} and all related data deleted` });
+});
+
 router.post("/cases/:id/process", async (req, res) => {
   const parsed = ProcessCaseParams.safeParse({ id: Number(req.params.id) });
   if (!parsed.success) return res.status(400).json({ error: "Invalid id" });

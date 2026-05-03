@@ -1,4 +1,4 @@
-import { useParams, Link } from "wouter";
+import { useParams, Link, useLocation } from "wouter";
 import { useState, useRef, useCallback } from "react";
 import { 
   useGetCase, 
@@ -6,7 +6,8 @@ import {
   useListDirectives,
   useGetActionPlan,
   useGetComplianceTimeline,
-  useGetAuditLog
+  useGetAuditLog,
+  useDeleteCase,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -14,7 +15,17 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, CheckCircle2, Clock, Cpu, FileText, Loader2, Upload, ShieldAlert, History, Calendar, AlertTriangle, ScanLine, FileCheck } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { ArrowLeft, CheckCircle2, Clock, Cpu, FileText, Loader2, Upload, ShieldAlert, History, Calendar, AlertTriangle, ScanLine, FileCheck, Trash2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 
@@ -103,8 +114,23 @@ export default function CaseDetail() {
     if (file) handleUploadFile(file);
   }, [handleUploadFile]);
 
+  const [, navigate] = useLocation();
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractElapsed, setExtractElapsed] = useState(0);
+
+  const { mutate: deleteCase, isPending: isDeleting } = useDeleteCase({
+    mutation: {
+      onSuccess: () => {
+        toast({ title: "Case Deleted", description: `${caseData?.caseNumber ?? "Case"} and all related data have been removed.` });
+        queryClient.invalidateQueries({ predicate: (q) => String(q.queryKey[0]).includes("case") });
+        navigate("/cases");
+      },
+      onError: () => {
+        toast({ title: "Delete Failed", description: "Could not delete the case. Please try again.", variant: "destructive" });
+      },
+    },
+  });
 
   const handleProcess = async () => {
     setIsExtracting(true);
@@ -170,7 +196,7 @@ export default function CaseDetail() {
             </p>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
             {caseData.status === "pending" && (
               <Button onClick={() => handleProcess()} disabled={isExtracting} className="bg-amber-600 hover:bg-amber-700 text-white">
                 {isExtracting
@@ -186,6 +212,15 @@ export default function CaseDetail() {
                 </Link>
               </Button>
             )}
+            <Button
+              variant="outline"
+              size="icon"
+              className="text-muted-foreground hover:text-destructive hover:border-destructive/50"
+              onClick={() => setShowDeleteDialog(true)}
+              title="Delete case"
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
           </div>
         </div>
       </div>
@@ -536,6 +571,27 @@ export default function CaseDetail() {
           </Card>
         </div>
       </div>
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this case?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete <span className="font-semibold text-foreground">{caseData.caseNumber}</span> along with all extracted directives, action items, audit logs, and uploaded judgment data. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={isDeleting}
+              onClick={() => deleteCase(caseId)}
+            >
+              {isDeleting ? "Deleting…" : "Delete Case"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

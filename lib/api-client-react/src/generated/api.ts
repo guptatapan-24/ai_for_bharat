@@ -24,6 +24,7 @@ import type {
   CaseDetail,
   CreateCaseBody,
   DashboardSummary,
+  DeleteCase200,
   DepartmentWorkload,
   Directive,
   GetAuditLogParams,
@@ -464,6 +465,90 @@ export const useUpdateCase = <
   TContext
 > => {
   return useMutation(getUpdateCaseMutationOptions(options));
+};
+
+/**
+ * @summary Delete a case and all related data
+ */
+export const getDeleteCaseUrl = (id: number) => {
+  return `/api/cases/${id}`;
+};
+
+export const deleteCase = async (
+  id: number,
+  options?: RequestInit,
+): Promise<DeleteCase200> => {
+  return customFetch<DeleteCase200>(getDeleteCaseUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDeleteCaseMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteCase>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof deleteCase>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["deleteCase"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof deleteCase>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return deleteCase(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DeleteCaseMutationResult = NonNullable<
+  Awaited<ReturnType<typeof deleteCase>>
+>;
+
+export type DeleteCaseMutationError = ErrorType<void>;
+
+/**
+ * @summary Delete a case and all related data
+ */
+export const useDeleteCase = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof deleteCase>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof deleteCase>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDeleteCaseMutationOptions(options));
 };
 
 /**

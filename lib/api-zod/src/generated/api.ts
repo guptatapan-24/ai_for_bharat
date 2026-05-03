@@ -265,6 +265,18 @@ export const UpdateCaseResponse = zod.object({
 });
 
 /**
+ * @summary Delete a case and all related data
+ */
+export const DeleteCaseParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DeleteCaseResponse = zod.object({
+  success: zod.boolean().optional(),
+  message: zod.string().optional(),
+});
+
+/**
  * @summary Trigger AI processing of the uploaded judgment PDF
  */
 export const ProcessCaseParams = zod.object({

@@ -507,6 +507,11 @@ export const ListCasesStatus = {
   completed: "completed",
 } as const;
 
+export type DeleteCase200 = {
+  success?: boolean;
+  message?: string;
+};
+
 export type ListDirectivesParams = {
   classification?: ListDirectivesClassification;
   type?: string;
