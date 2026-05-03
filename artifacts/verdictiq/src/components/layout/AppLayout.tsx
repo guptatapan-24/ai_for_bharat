@@ -1,9 +1,21 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, FileText, PlusCircle } from "lucide-react";
-import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider } from "@/components/ui/sidebar";
+import { LayoutDashboard, FileText, PlusCircle, LogOut, ChevronUp } from "lucide-react";
+import { useUser, useClerk } from "@clerk/react";
+import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarFooter } from "@/components/ui/sidebar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
+  const { user } = useUser();
+  const { signOut } = useClerk();
+
+  const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
   return (
     <SidebarProvider>
@@ -18,8 +30,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
           <SidebarContent>
             <SidebarMenu className="mt-4 px-2 gap-2">
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/"}>
-                  <Link href="/">
+                <SidebarMenuButton asChild isActive={location === "/dashboard"}>
+                  <Link href="/dashboard">
                     <LayoutDashboard className="mr-2 h-4 w-4" />
                     Dashboard
                   </Link>
@@ -43,6 +55,40 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
               </SidebarMenuItem>
             </SidebarMenu>
           </SidebarContent>
+          <SidebarFooter className="p-2 border-t border-sidebar-border">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button className="w-full flex items-center gap-3 px-3 py-2 rounded-md hover:bg-sidebar-accent text-sidebar-foreground transition-colors text-left">
+                  <div className="w-8 h-8 rounded-full bg-amber-500 flex items-center justify-center text-sidebar font-semibold text-sm flex-shrink-0">
+                    {user?.firstName?.[0] ?? user?.emailAddresses?.[0]?.emailAddress?.[0]?.toUpperCase() ?? "?"}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate text-sidebar-foreground">
+                      {user?.fullName ?? user?.emailAddresses?.[0]?.emailAddress ?? "User"}
+                    </p>
+                    <p className="text-xs text-sidebar-foreground/60 truncate">
+                      {user?.emailAddresses?.[0]?.emailAddress ?? ""}
+                    </p>
+                  </div>
+                  <ChevronUp className="h-4 w-4 text-sidebar-foreground/60 flex-shrink-0" />
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="top" align="start" className="w-56">
+                <div className="px-2 py-1.5">
+                  <p className="text-sm font-medium">{user?.fullName ?? "User"}</p>
+                  <p className="text-xs text-muted-foreground truncate">{user?.emailAddresses?.[0]?.emailAddress}</p>
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive cursor-pointer"
+                  onClick={() => signOut({ redirectUrl: basePath || "/" })}
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </SidebarFooter>
         </Sidebar>
         <main className="flex-1 overflow-y-auto bg-background text-foreground flex flex-col">
           {children}

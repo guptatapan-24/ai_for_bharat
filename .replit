@@ -33,3 +33,8 @@ externalPort = 80
 
 [nix]
 channel = "stable-25_05"
+
+[userenv]
+
+[userenv.shared]
+VITE_CLERK_PUBLISHABLE_KEY = "pk_test_dG9sZXJhbnQtc3RhcmZpc2gtMzguY2xlcmsuYWNjb3VudHMuZGV2JA"

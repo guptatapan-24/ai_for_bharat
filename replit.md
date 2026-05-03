@@ -16,6 +16,7 @@ Full-lifecycle court judgment intelligence system for government legal complianc
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
+- **Auth**: Clerk (Replit-managed, `@clerk/react` + `@clerk/express`)
 
 ## Architecture
 
@@ -27,11 +28,23 @@ Four-step judgment lifecycle:
 
 ## Key Pages
 
-- `/` — Command Center dashboard (stats, urgent items, department workload, activity feed)
+- `/` — Redirects: signed-in → `/dashboard`, signed-out → `/sign-in`
+- `/sign-in`, `/sign-up` — Branded Clerk auth pages (split-screen layout)
+- `/dashboard` — Command Center (stats, urgent items, department workload, activity feed)
 - `/cases` — Court case list with search/filter
 - `/cases/new` — Register a new case
 - `/cases/:id` — Case detail (Directives / Action Plan / Compliance Timeline / Audit Trail tabs)
 - `/cases/:id/verify` — Human-in-the-loop verification interface
+
+## Authentication
+
+- Replit-managed Clerk (`setupClerkWhitelabelAuth()` already run, app ID: `app_3DCis62LacqQ9KfEhhpVKO1PWX6`)
+- Clerk proxy middleware mounted at `/api/__clerk` in Express before CORS/body parsers
+- All API routes protected by `requireAuth` middleware (getAuth from @clerk/express) — health check exempt
+- Frontend uses `ClerkProvider` in `App.tsx` with `@clerk/themes` shadcn theme + VerdictIQ amber branding
+- Tailwind v4: `@layer theme, base, clerk, components, utilities;` in index.css; `tailwindcss({ optimize: false })` in vite.config.ts
+- User profile + sign-out in sidebar footer via `useUser` + `useClerk` hooks
+- CRITICAL: `VITE_CLERK_PUBLISHABLE_KEY` used directly (not via publishableKeyFromHost) to avoid Clerk loading from Replit dev domain proxy
 
 ## Key Commands
 
@@ -49,6 +62,8 @@ Four-step judgment lifecycle:
 - `audit_log` — immutable audit trail of all extractions and reviewer decisions
 
 ## API Routes
+
+All routes require authentication except `GET /api/healthz`.
 
 - `GET/POST /api/cases` — list/create cases
 - `GET/PATCH /api/cases/:id` — case detail/update
