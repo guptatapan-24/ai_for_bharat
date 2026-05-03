@@ -25,7 +25,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, CheckCircle2, Clock, Cpu, FileText, Loader2, Upload, ShieldAlert, History, Calendar, AlertTriangle, ScanLine, FileCheck, Trash2 } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, Cpu, FileText, Loader2, Upload, ShieldAlert, History, Calendar, AlertTriangle, ScanLine, FileCheck, Trash2, RefreshCw } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 
@@ -51,6 +51,8 @@ export default function CaseDetail() {
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
   const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const replaceFileInputRef = useRef<HTMLInputElement>(null);
+  const [showReprocessDialog, setShowReprocessDialog] = useState(false);
 
   const { data: caseData, isLoading } = useGetCase(caseId, {
     query: { enabled: !!caseId, queryKey: getGetCaseQueryKey(caseId) }
@@ -155,6 +157,10 @@ export default function CaseDetail() {
           : "No directives found — the AI may need more context. Try adding case notes.",
       });
       queryClient.invalidateQueries({ queryKey: getGetCaseQueryKey(caseId) });
+      queryClient.invalidateQueries({ queryKey: ["directives", caseId] });
+      queryClient.invalidateQueries({ queryKey: ["action-plan", caseId] });
+      queryClient.invalidateQueries({ queryKey: ["timeline", caseId] });
+      queryClient.invalidateQueries({ queryKey: ["audit-log", caseId] });
       setUploadResult(null);
     } catch {
       toast({ title: "Extraction Failed", description: "AI processing encountered an error. Please try again.", variant: "destructive" });
@@ -163,6 +169,42 @@ export default function CaseDetail() {
       setIsExtracting(false);
     }
   };
+
+  const handleReplaceAndReprocess = useCallback(async (file: File) => {
+    if (!file || file.type !== "application/pdf") {
+      toast({ title: "Invalid file", description: "Only PDF files are accepted.", variant: "destructive" });
+      return;
+    }
+    setIsUploading(true);
+    setUploadProgress(10);
+    try {
+      const formData = new FormData();
+      formData.append("pdf", file);
+      setUploadProgress(30);
+      const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+      const res = await fetch(`${base}/api/cases/${caseId}/upload`, { method: "POST", body: formData });
+      setUploadProgress(80);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error ?? "Upload failed");
+      }
+      const data: UploadResult = await res.json();
+      setUploadProgress(100);
+      toast({
+        title: `PDF Replaced — ${data.pageCount} pages`,
+        description: "New PDF uploaded. Starting AI re-extraction…",
+      });
+      queryClient.invalidateQueries({ queryKey: getGetCaseQueryKey(caseId) });
+    } catch (err) {
+      toast({ title: "Upload Failed", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
+      setIsUploading(false);
+      setUploadProgress(0);
+      return;
+    }
+    setIsUploading(false);
+    setUploadProgress(0);
+    await handleProcess();
+  }, [caseId, queryClient, toast]);
 
   if (isLoading) {
     return <div className="p-8"><Skeleton className="w-full h-[500px]" /></div>;
@@ -204,6 +246,24 @@ export default function CaseDetail() {
                   : <><Cpu className="w-4 h-4 mr-2" />Extract Directives (AI)</>}
               </Button>
             )}
+            {canVerify && !isExtracting && !isUploading && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-muted-foreground"
+                onClick={() => setShowReprocessDialog(true)}
+                title="Replace PDF and re-extract directives"
+              >
+                <RefreshCw className="w-4 h-4 mr-2" />
+                Replace PDF
+              </Button>
+            )}
+            {(isExtracting || isUploading) && canVerify && (
+              <Button variant="outline" size="sm" disabled className="text-muted-foreground">
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                {isUploading ? `Uploading… (${uploadProgress}%)` : `Re-extracting${extractElapsed > 0 ? ` (${extractElapsed}s)` : "…"}`}
+              </Button>
+            )}
             {canVerify && (
               <Button asChild className="bg-primary text-primary-foreground shadow-md font-medium">
                 <Link href={`/cases/${caseId}/verify`}>
@@ -222,6 +282,19 @@ export default function CaseDetail() {
               <Trash2 className="w-4 h-4" />
             </Button>
           </div>
+
+          {/* Hidden file input for PDF replacement */}
+          <input
+            ref={replaceFileInputRef}
+            type="file"
+            accept="application/pdf"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleReplaceAndReprocess(file);
+              e.target.value = "";
+            }}
+          />
         </div>
       </div>
 
@@ -588,6 +661,45 @@ export default function CaseDetail() {
               onClick={() => deleteCase({ id: caseId })}
             >
               {isDeleting ? "Deleting…" : "Delete Case"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={showReprocessDialog} onOpenChange={setShowReprocessDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <RefreshCw className="w-5 h-5 text-amber-600" />
+              Replace PDF and re-extract?
+            </AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-2 text-sm text-muted-foreground">
+                <p>
+                  Uploading a new PDF for <span className="font-semibold text-foreground">{caseData.caseNumber}</span> will:
+                </p>
+                <ul className="list-disc pl-5 space-y-1">
+                  <li>Delete all <span className="font-semibold text-foreground">{caseData.totalDirectives ?? 0} existing directives</span> and their action items</li>
+                  <li>Re-run AI extraction on the new PDF from scratch</li>
+                  <li>Reset the case to "Under Review" status</li>
+                </ul>
+                <p className="text-amber-700 dark:text-amber-400 font-medium pt-1">
+                  Any reviewer approvals or edits made to existing directives will be lost.
+                </p>
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-amber-600 text-white hover:bg-amber-700"
+              onClick={() => {
+                setShowReprocessDialog(false);
+                replaceFileInputRef.current?.click();
+              }}
+            >
+              <Upload className="w-4 h-4 mr-2" />
+              Choose New PDF
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
