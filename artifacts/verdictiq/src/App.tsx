@@ -7,6 +7,8 @@ import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/reac
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/layout/AppLayout";
+import { UserRoleProvider } from "@/contexts/UserRoleContext";
+import AdminUsers from "@/pages/admin/users";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
 import CaseList from "@/pages/cases/index";
@@ -207,16 +209,19 @@ function ProtectedRoutes() {
   return (
     <>
       <Show when="signed-in">
-        <AppLayout>
-          <Switch>
-            <Route path="/dashboard" component={Dashboard} />
-            <Route path="/cases" component={CaseList} />
-            <Route path="/cases/new" component={NewCase} />
-            <Route path="/cases/:id" component={CaseDetail} />
-            <Route path="/cases/:id/verify" component={CaseVerify} />
-            <Route component={NotFound} />
-          </Switch>
-        </AppLayout>
+        <UserRoleProvider>
+          <AppLayout>
+            <Switch>
+              <Route path="/dashboard" component={Dashboard} />
+              <Route path="/cases" component={CaseList} />
+              <Route path="/cases/new" component={NewCase} />
+              <Route path="/cases/:id" component={CaseDetail} />
+              <Route path="/cases/:id/verify" component={CaseVerify} />
+              <Route path="/admin/users" component={AdminUsers} />
+              <Route component={NotFound} />
+            </Switch>
+          </AppLayout>
+        </UserRoleProvider>
       </Show>
       <Show when="signed-out">
         <Redirect to="/" />

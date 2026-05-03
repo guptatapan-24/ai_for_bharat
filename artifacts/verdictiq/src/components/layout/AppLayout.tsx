@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, FileText, PlusCircle, LogOut, ChevronUp } from "lucide-react";
+import { LayoutDashboard, FileText, PlusCircle, LogOut, ChevronUp, Users, Shield } from "lucide-react";
 import { useUser, useClerk } from "@clerk/react";
 import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarFooter } from "@/components/ui/sidebar";
 import {
@@ -9,11 +9,19 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useUserRole } from "@/contexts/UserRoleContext";
+
+const ROLE_LABELS: Record<string, string> = {
+  admin: "Admin",
+  reviewer: "Reviewer",
+  viewer: "Viewer",
+};
 
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const { user } = useUser();
   const { signOut } = useClerk();
+  const { isAdmin, isViewer, role } = useUserRole();
 
   const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -45,14 +53,26 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
-              <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={location === "/cases/new"}>
-                  <Link href="/cases/new">
-                    <PlusCircle className="mr-2 h-4 w-4" />
-                    New Case
-                  </Link>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
+              {!isViewer && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={location === "/cases/new"}>
+                    <Link href="/cases/new">
+                      <PlusCircle className="mr-2 h-4 w-4" />
+                      New Case
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
+              {isAdmin && (
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild isActive={location.startsWith("/admin")}>
+                    <Link href="/admin/users">
+                      <Users className="mr-2 h-4 w-4" />
+                      Users
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              )}
             </SidebarMenu>
           </SidebarContent>
           <SidebarFooter className="p-2 border-t border-sidebar-border">
@@ -66,9 +86,12 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     <p className="text-sm font-medium truncate text-sidebar-foreground">
                       {user?.fullName ?? user?.emailAddresses?.[0]?.emailAddress ?? "User"}
                     </p>
-                    <p className="text-xs text-sidebar-foreground/60 truncate">
-                      {user?.emailAddresses?.[0]?.emailAddress ?? ""}
-                    </p>
+                    <div className="flex items-center gap-1.5">
+                      <Shield className="h-2.5 w-2.5 text-amber-400 flex-shrink-0" />
+                      <p className="text-xs text-amber-400 font-medium">
+                        {role ? ROLE_LABELS[role] : "…"}
+                      </p>
+                    </div>
                   </div>
                   <ChevronUp className="h-4 w-4 text-sidebar-foreground/60 flex-shrink-0" />
                 </button>
@@ -77,6 +100,9 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                 <div className="px-2 py-1.5">
                   <p className="text-sm font-medium">{user?.fullName ?? "User"}</p>
                   <p className="text-xs text-muted-foreground truncate">{user?.emailAddresses?.[0]?.emailAddress}</p>
+                  {role && (
+                    <p className="text-xs text-amber-600 font-medium mt-0.5">{ROLE_LABELS[role]}</p>
+                  )}
                 </div>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem

@@ -5,3 +5,4 @@ export * from "./action_items";
 export * from "./audit_log";
 export * from "./conversations";
 export * from "./messages";
+export * from "./users";

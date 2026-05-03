@@ -24,6 +24,8 @@ tags:
     description: Dashboard summaries and analytics
   - name: audit
     description: Audit trail and logs
+  - name: auth
+    description: Authentication and user management
 paths:
   /healthz:
     get:
@@ -417,6 +419,59 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/AuditEntry"
+
+  /me:
+    get:
+      operationId: getMe
+      tags: [auth]
+      summary: Get current authenticated user
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+
+  /users:
+    get:
+      operationId: listUsers
+      tags: [auth]
+      summary: List all users (admin only)
+      responses:
+        "200":
+          description: List of users
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+
+  /users/{clerkId}/role:
+    patch:
+      operationId: updateUserRole
+      tags: [auth]
+      summary: Update a user role (admin only)
+      parameters:
+        - name: clerkId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserRoleBody"
+      responses:
+        "200":
+          description: Updated user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
 
 components:
   schemas:
@@ -984,3 +1039,33 @@ components:
           type: string
           format: date-time
       required: [id, caseId, caseNumber, eventType, timestamp]
+
+    UserRole:
+      type: string
+      enum: [admin, reviewer, viewer]
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        clerkId:
+          type: string
+        email:
+          type: string
+        fullName:
+          type: string
+          nullable: true
+        role:
+          $ref: "#/components/schemas/UserRole"
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, clerkId, email, role, createdAt]
+
+    UpdateUserRoleBody:
+      type: object
+      properties:
+        role:
+          $ref: "#/components/schemas/UserRole"
+      required: [role]

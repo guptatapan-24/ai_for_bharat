@@ -1,5 +1,6 @@
 import { useParams, Link, useLocation } from "wouter";
 import { useState, useRef, useCallback } from "react";
+import { useUserRole } from "@/contexts/UserRoleContext";
 import { 
   useGetCase, 
   getGetCaseQueryKey, 
@@ -117,6 +118,7 @@ export default function CaseDetail() {
   }, [handleUploadFile]);
 
   const [, navigate] = useLocation();
+  const { isAdmin, isReviewer } = useUserRole();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
   const [extractElapsed, setExtractElapsed] = useState(0);
@@ -239,14 +241,14 @@ export default function CaseDetail() {
           </div>
 
           <div className="flex gap-2 items-center">
-            {caseData.status === "pending" && (
+            {caseData.status === "pending" && isAdmin && (
               <Button onClick={() => handleProcess()} disabled={isExtracting} className="bg-amber-600 hover:bg-amber-700 text-white">
                 {isExtracting
                   ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Extracting{extractElapsed > 0 ? ` (${extractElapsed}s)` : "…"}</>
                   : <><Cpu className="w-4 h-4 mr-2" />Extract Directives (AI)</>}
               </Button>
             )}
-            {canVerify && !isExtracting && !isUploading && (
+            {canVerify && !isExtracting && !isUploading && isAdmin && (
               <Button
                 variant="outline"
                 size="sm"
@@ -264,7 +266,7 @@ export default function CaseDetail() {
                 {isUploading ? `Uploading… (${uploadProgress}%)` : `Re-extracting${extractElapsed > 0 ? ` (${extractElapsed}s)` : "…"}`}
               </Button>
             )}
-            {canVerify && (
+            {canVerify && isReviewer && (
               <Button asChild className="bg-primary text-primary-foreground shadow-md font-medium">
                 <Link href={`/cases/${caseId}/verify`}>
                   <ShieldAlert className="w-4 h-4 mr-2" />
@@ -272,15 +274,17 @@ export default function CaseDetail() {
                 </Link>
               </Button>
             )}
-            <Button
-              variant="outline"
-              size="icon"
-              className="text-muted-foreground hover:text-destructive hover:border-destructive/50"
-              onClick={() => setShowDeleteDialog(true)}
-              title="Delete case"
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
+            {isAdmin && (
+              <Button
+                variant="outline"
+                size="icon"
+                className="text-muted-foreground hover:text-destructive hover:border-destructive/50"
+                onClick={() => setShowDeleteDialog(true)}
+                title="Delete case"
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            )}
           </div>
 
           {/* Hidden file input for PDF replacement */}

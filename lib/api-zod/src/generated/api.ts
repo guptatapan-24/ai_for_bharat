@@ -626,3 +626,48 @@ export const GetAuditLogResponseItem = zod.object({
   timestamp: zod.coerce.date(),
 });
 export const GetAuditLogResponse = zod.array(GetAuditLogResponseItem);
+
+/**
+ * @summary Get current authenticated user
+ */
+export const GetMeResponse = zod.object({
+  id: zod.number(),
+  clerkId: zod.string(),
+  email: zod.string(),
+  fullName: zod.string().nullish(),
+  role: zod.enum(["admin", "reviewer", "viewer"]),
+  createdAt: zod.coerce.date(),
+});
+
+/**
+ * @summary List all users (admin only)
+ */
+export const ListUsersResponseItem = zod.object({
+  id: zod.number(),
+  clerkId: zod.string(),
+  email: zod.string(),
+  fullName: zod.string().nullish(),
+  role: zod.enum(["admin", "reviewer", "viewer"]),
+  createdAt: zod.coerce.date(),
+});
+export const ListUsersResponse = zod.array(ListUsersResponseItem);
+
+/**
+ * @summary Update a user role (admin only)
+ */
+export const UpdateUserRoleParams = zod.object({
+  clerkId: zod.coerce.string(),
+});
+
+export const UpdateUserRoleBody = zod.object({
+  role: zod.enum(["admin", "reviewer", "viewer"]),
+});
+
+export const UpdateUserRoleResponse = zod.object({
+  id: zod.number(),
+  clerkId: zod.string(),
+  email: zod.string(),
+  fullName: zod.string().nullish(),
+  role: zod.enum(["admin", "reviewer", "viewer"]),
+  createdAt: zod.coerce.date(),
+});

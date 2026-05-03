@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { useListCases, useDeleteCase } from "@workspace/api-client-react";
+import { useUserRole } from "@/contexts/UserRoleContext";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +30,7 @@ export default function CaseList() {
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { isAdmin, isViewer } = useUserRole();
 
   const { data: cases, isLoading } = useListCases({
     search: search || undefined,
@@ -57,9 +59,11 @@ export default function CaseList() {
           <h1 className="text-3xl font-serif font-bold text-foreground">Court Cases</h1>
           <p className="text-muted-foreground mt-1">Manage and track intelligence extracted from judgments.</p>
         </div>
-        <Button asChild className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium">
-          <Link href="/cases/new">Register New Case</Link>
-        </Button>
+        {!isViewer && (
+          <Button asChild className="bg-primary hover:bg-primary/90 text-primary-foreground font-medium">
+            <Link href="/cases/new">Register New Case</Link>
+          </Button>
+        )}
       </div>
 
       <div className="flex flex-col sm:flex-row gap-4">
@@ -138,18 +142,20 @@ export default function CaseList() {
                         <div className="text-xs text-muted-foreground uppercase tracking-wide font-medium mt-1">Pending Review</div>
                       </div>
 
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setDeletingCase({ id: c.id, caseNumber: c.caseNumber });
-                        }}
-                        title="Delete case"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </Button>
+                      {isAdmin && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setDeletingCase({ id: c.id, caseNumber: c.caseNumber });
+                          }}
+                          title="Delete case"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardContent>

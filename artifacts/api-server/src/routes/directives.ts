@@ -9,6 +9,7 @@ import {
   VerifyDirectiveBody,
 } from "@workspace/api-zod";
 import { eq, and } from "drizzle-orm";
+import { requireRole } from "../middlewares/auth";
 
 const router = Router();
 
@@ -61,7 +62,7 @@ router.get("/cases/:id/directives/:directiveId", async (req, res) => {
   return res.json(directive);
 });
 
-router.post("/cases/:id/directives/:directiveId/verify", async (req, res) => {
+router.post("/cases/:id/directives/:directiveId/verify", requireRole(["admin", "reviewer"]), async (req, res) => {
   const paramParsed = VerifyDirectiveParams.safeParse({
     id: Number(req.params.id),
     directiveId: Number(req.params.directiveId),

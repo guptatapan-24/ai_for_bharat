@@ -489,6 +489,27 @@ export interface AuditEntry {
   timestamp: string;
 }
 
+export type UserRole = (typeof UserRole)[keyof typeof UserRole];
+
+export const UserRole = {
+  admin: "admin",
+  reviewer: "reviewer",
+  viewer: "viewer",
+} as const;
+
+export interface User {
+  id: number;
+  clerkId: string;
+  email: string;
+  fullName?: string | null;
+  role: UserRole;
+  createdAt: string;
+}
+
+export interface UpdateUserRoleBody {
+  role: UserRole;
+}
+
 export type ListCasesParams = {
   status?: ListCasesStatus;
   court?: string;

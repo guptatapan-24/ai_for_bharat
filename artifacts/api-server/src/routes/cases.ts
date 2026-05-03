@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { requireRole } from "../middlewares/auth";
 import { db } from "@workspace/db";
 import {
   casesTable,
@@ -414,7 +415,7 @@ router.get("/cases", async (req, res) => {
   return res.json(result);
 });
 
-router.post("/cases", async (req, res) => {
+router.post("/cases", requireRole(["admin"]), async (req, res) => {
   const parsed = CreateCaseBody.safeParse(req.body);
   if (!parsed.success) {
     return res.status(400).json({ error: parsed.error });
@@ -509,7 +510,7 @@ router.get("/cases/:id", async (req, res) => {
   });
 });
 
-router.patch("/cases/:id", async (req, res) => {
+router.patch("/cases/:id", requireRole(["admin", "reviewer"]), async (req, res) => {
   const paramParsed = UpdateCaseParams.safeParse({ id: Number(req.params.id) });
   if (!paramParsed.success) return res.status(400).json({ error: "Invalid id" });
 
@@ -546,7 +547,7 @@ router.patch("/cases/:id", async (req, res) => {
   });
 });
 
-router.delete("/cases/:id", async (req, res) => {
+router.delete("/cases/:id", requireRole(["admin"]), async (req, res) => {
   const parsed = GetCaseParams.safeParse({ id: Number(req.params.id) });
   if (!parsed.success) return res.status(400).json({ error: "Invalid id" });
 
@@ -570,7 +571,7 @@ router.delete("/cases/:id", async (req, res) => {
   return res.json({ success: true, message: `Case ${caseRow.caseNumber} and all related data deleted` });
 });
 
-router.post("/cases/:id/process", async (req, res) => {
+router.post("/cases/:id/process", requireRole(["admin"]), async (req, res) => {
   const parsed = ProcessCaseParams.safeParse({ id: Number(req.params.id) });
   if (!parsed.success) return res.status(400).json({ error: "Invalid id" });
 

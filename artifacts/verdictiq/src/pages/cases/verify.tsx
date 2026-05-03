@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
-import { useParams, Link, useLocation } from "wouter";
+import { useParams, Link, useLocation, Redirect } from "wouter";
+import { useUserRole } from "@/contexts/UserRoleContext";
 import { useGetCase, useListDirectives, useVerifyDirective, getGetCaseQueryKey, getListDirectivesQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -29,6 +30,8 @@ export default function VerifyInterface() {
   });
 
   const verifyMutation = useVerifyDirective();
+  const { isViewer, isLoaded, fullName, email } = useUserRole();
+  const reviewerName = fullName ?? email ?? "Unknown User";
 
   const [currentIndex, setCurrentIndex] = useState(0);
   const [editMode, setEditMode] = useState(false);
@@ -46,6 +49,8 @@ export default function VerifyInterface() {
 
   const currentDirective = pendingDirectives[currentIndex];
 
+  if (isLoaded && isViewer) return <Redirect to={`/cases/${caseId}`} />;
+
   const handleApprove = () => {
     if (!currentDirective) return;
     
@@ -54,7 +59,7 @@ export default function VerifyInterface() {
       directiveId: currentDirective.id,
       data: {
         decision: "approved",
-        reviewerName: "Current User", // Mocked for now
+        reviewerName,
       }
     }, {
       onSuccess: () => {
@@ -76,7 +81,7 @@ export default function VerifyInterface() {
       directiveId: currentDirective.id,
       data: {
         decision: "edited",
-        reviewerName: "Current User",
+        reviewerName,
         correctedValue: editedAction,
         correctedClassification: editedClass,
         reason: editReason
@@ -102,7 +107,7 @@ export default function VerifyInterface() {
       directiveId: currentDirective.id,
       data: {
         decision: "rejected",
-        reviewerName: "Current User",
+        reviewerName,
         reason: rejectReason
       }
     }, {
