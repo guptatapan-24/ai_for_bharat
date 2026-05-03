@@ -3,20 +3,33 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: VerdictIQ - Court Judgment Intelligence System API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: cases
+    description: Court case management
+  - name: judgments
+    description: Judgment ingestion and processing
+  - name: directives
+    description: Extracted directives and compliance obligations
+  - name: action-plan
+    description: Department-ready action plan items
+  - name: verification
+    description: Human verification workflow
+  - name: dashboard
+    description: Dashboard summaries and analytics
+  - name: audit
+    description: Audit trail and logs
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
       summary: Health check
-      description: Returns server health status
       responses:
         "200":
           description: Healthy
@@ -24,6 +37,363 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /cases:
+    get:
+      operationId: listCases
+      tags: [cases]
+      summary: List all cases
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, processing, under_review, verified, completed]
+        - name: court
+          in: query
+          schema:
+            type: string
+        - name: department
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of cases
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Case"
+    post:
+      operationId: createCase
+      tags: [cases]
+      summary: Create a new case
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCaseBody"
+      responses:
+        "201":
+          description: Case created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+
+  /cases/{id}:
+    get:
+      operationId: getCase
+      tags: [cases]
+      summary: Get case by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Case details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseDetail"
+        "404":
+          description: Case not found
+    patch:
+      operationId: updateCase
+      tags: [cases]
+      summary: Update case metadata
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCaseBody"
+      responses:
+        "200":
+          description: Updated case
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Case"
+
+  /cases/{id}/process:
+    post:
+      operationId: processCase
+      tags: [judgments]
+      summary: Trigger AI processing of the uploaded judgment PDF
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Processing started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProcessingStatus"
+
+  /cases/{id}/directives:
+    get:
+      operationId: listDirectives
+      tags: [directives]
+      summary: List all extracted directives for a case
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: classification
+          in: query
+          schema:
+            type: string
+            enum: [mandatory, advisory, all]
+        - name: type
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of directives
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Directive"
+
+  /cases/{id}/directives/{directiveId}:
+    get:
+      operationId: getDirective
+      tags: [directives]
+      summary: Get a specific directive
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: directiveId
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Directive details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Directive"
+
+  /cases/{id}/directives/{directiveId}/verify:
+    post:
+      operationId: verifyDirective
+      tags: [verification]
+      summary: Approve, edit, or reject an extracted directive
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: directiveId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyDirectiveBody"
+      responses:
+        "200":
+          description: Verification recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Directive"
+
+  /cases/{id}/action-plan:
+    get:
+      operationId: getActionPlan
+      tags: [action-plan]
+      summary: Get the verified action plan for a case
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Action plan items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActionItem"
+
+  /cases/{id}/action-plan/{itemId}:
+    patch:
+      operationId: updateActionItem
+      tags: [action-plan]
+      summary: Update an action plan item
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateActionItemBody"
+      responses:
+        "200":
+          description: Updated action item
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ActionItem"
+
+  /cases/{id}/compliance-timeline:
+    get:
+      operationId: getComplianceTimeline
+      tags: [cases]
+      summary: Get ordered timeline of all compliance deadlines for a case
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Compliance timeline
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TimelineEvent"
+
+  /dashboard/summary:
+    get:
+      operationId: getDashboardSummary
+      tags: [dashboard]
+      summary: Overall system summary stats
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+
+  /dashboard/urgent:
+    get:
+      operationId: getUrgentItems
+      tags: [dashboard]
+      summary: Urgent action items with approaching deadlines
+      responses:
+        "200":
+          description: Urgent items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/UrgentItem"
+
+  /dashboard/department-workload:
+    get:
+      operationId: getDepartmentWorkload
+      tags: [dashboard]
+      summary: Action item counts grouped by department
+      responses:
+        "200":
+          description: Department workload breakdown
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DepartmentWorkload"
+
+  /dashboard/recent-activity:
+    get:
+      operationId: getRecentActivity
+      tags: [dashboard]
+      summary: Recent verification and processing activity feed
+      responses:
+        "200":
+          description: Recent activity
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ActivityItem"
+
+  /audit-log:
+    get:
+      operationId: getAuditLog
+      tags: [audit]
+      summary: Full audit trail of all extractions and reviewer decisions
+      parameters:
+        - name: caseId
+          in: query
+          schema:
+            type: integer
+        - name: reviewer
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        "200":
+          description: Audit log entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AuditEntry"
+
 components:
   schemas:
     HealthStatus:
@@ -31,6 +401,562 @@ components:
       properties:
         status:
           type: string
-      required:
-        - status
+      required: [status]
 
+    Case:
+      type: object
+      properties:
+        id:
+          type: integer
+        caseNumber:
+          type: string
+        court:
+          type: string
+        bench:
+          type: string
+        benchType:
+          type: string
+          enum: [single, division, coordinate, full_bench]
+        dateOfOrder:
+          type: string
+          format: date
+        petitioner:
+          type: string
+        respondent:
+          type: string
+        governmentRole:
+          type: string
+          enum: [petitioner, respondent, both, none]
+        status:
+          type: string
+          enum: [pending, processing, under_review, verified, completed]
+        urgencyLevel:
+          type: string
+          enum: [critical, high, medium, low]
+        totalDirectives:
+          type: integer
+        mandatoryCount:
+          type: integer
+        advisoryCount:
+          type: integer
+        verifiedCount:
+          type: integer
+        pendingVerificationCount:
+          type: integer
+        processingStartedAt:
+          type: string
+          format: date-time
+          nullable: true
+        processingCompletedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - caseNumber
+        - court
+        - status
+        - createdAt
+        - updatedAt
+
+    CaseDetail:
+      allOf:
+        - $ref: "#/components/schemas/Case"
+        - type: object
+          properties:
+            judgment:
+              $ref: "#/components/schemas/Judgment"
+              nullable: true
+            directives:
+              type: array
+              items:
+                $ref: "#/components/schemas/Directive"
+            actionItems:
+              type: array
+              items:
+                $ref: "#/components/schemas/ActionItem"
+
+    CreateCaseBody:
+      type: object
+      properties:
+        caseNumber:
+          type: string
+        court:
+          type: string
+        bench:
+          type: string
+        benchType:
+          type: string
+          enum: [single, division, coordinate, full_bench]
+        dateOfOrder:
+          type: string
+          format: date
+        petitioner:
+          type: string
+        respondent:
+          type: string
+        governmentRole:
+          type: string
+          enum: [petitioner, respondent, both, none]
+        urgencyLevel:
+          type: string
+          enum: [critical, high, medium, low]
+        notes:
+          type: string
+      required: [caseNumber, court]
+
+    UpdateCaseBody:
+      type: object
+      properties:
+        bench:
+          type: string
+        benchType:
+          type: string
+          enum: [single, division, coordinate, full_bench]
+        dateOfOrder:
+          type: string
+          format: date
+        petitioner:
+          type: string
+        respondent:
+          type: string
+        governmentRole:
+          type: string
+          enum: [petitioner, respondent, both, none]
+        urgencyLevel:
+          type: string
+          enum: [critical, high, medium, low]
+        status:
+          type: string
+          enum: [pending, processing, under_review, verified, completed]
+        notes:
+          type: string
+
+    Judgment:
+      type: object
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        pdfHash:
+          type: string
+        pageCount:
+          type: integer
+        isScanned:
+          type: boolean
+        overallOcrConfidence:
+          type: number
+          nullable: true
+        lowConfidencePages:
+          type: array
+          items:
+            type: integer
+        modelVersion:
+          type: string
+        rawTextPreview:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, caseId, pdfHash, pageCount, isScanned, createdAt]
+
+    Directive:
+      type: object
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        judgmentId:
+          type: integer
+        type:
+          type: string
+          enum: [compliance_order, stay, direction, limitation_period, appeal, observation, other]
+        classification:
+          type: string
+          enum: [mandatory, advisory, unknown]
+        sourceText:
+          type: string
+        pageNumber:
+          type: integer
+        paragraphRef:
+          type: string
+          nullable: true
+        deadline:
+          type: string
+          format: date
+          nullable: true
+        deadlineInferred:
+          type: boolean
+        deadlineSource:
+          type: string
+          nullable: true
+        responsibleDepartment:
+          type: string
+          nullable: true
+        actionRequired:
+          type: string
+        isNovel:
+          type: boolean
+        confidenceScore:
+          type: number
+        verificationStatus:
+          type: string
+          enum: [pending, approved, edited, rejected]
+        reviewerName:
+          type: string
+          nullable: true
+        reviewerCorrection:
+          type: string
+          nullable: true
+        reviewerReason:
+          type: string
+          nullable: true
+        reviewedAt:
+          type: string
+          format: date-time
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - caseId
+        - judgmentId
+        - type
+        - classification
+        - sourceText
+        - pageNumber
+        - actionRequired
+        - isNovel
+        - confidenceScore
+        - verificationStatus
+        - deadlineInferred
+        - createdAt
+
+    VerifyDirectiveBody:
+      type: object
+      properties:
+        decision:
+          type: string
+          enum: [approved, edited, rejected]
+        correctedValue:
+          type: string
+          nullable: true
+        correctedClassification:
+          type: string
+          enum: [mandatory, advisory]
+          nullable: true
+        correctedDeadline:
+          type: string
+          format: date
+          nullable: true
+        correctedDepartment:
+          type: string
+          nullable: true
+        reason:
+          type: string
+          nullable: true
+        reviewerName:
+          type: string
+      required: [decision, reviewerName]
+
+    ActionItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        directiveId:
+          type: integer
+        title:
+          type: string
+        description:
+          type: string
+        department:
+          type: string
+        priority:
+          type: string
+          enum: [critical, high, medium, low]
+        classification:
+          type: string
+          enum: [mandatory, advisory]
+        deadline:
+          type: string
+          format: date
+          nullable: true
+        deadlineInferred:
+          type: boolean
+        status:
+          type: string
+          enum: [pending, in_progress, completed, escalated]
+        sourcePageNumber:
+          type: integer
+        sourceText:
+          type: string
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        createdAt:
+          type: string
+          format: date-time
+      required:
+        - id
+        - caseId
+        - directiveId
+        - title
+        - description
+        - department
+        - priority
+        - classification
+        - deadlineInferred
+        - status
+        - sourcePageNumber
+        - sourceText
+        - createdAt
+
+    UpdateActionItemBody:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [pending, in_progress, completed, escalated]
+        notes:
+          type: string
+        deadline:
+          type: string
+          format: date
+
+    ProcessingStatus:
+      type: object
+      properties:
+        caseId:
+          type: integer
+        status:
+          type: string
+          enum: [started, processing, completed, failed]
+        message:
+          type: string
+        directivesExtracted:
+          type: integer
+          nullable: true
+      required: [caseId, status, message]
+
+    TimelineEvent:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        title:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+          enum: [compliance_order, stay, direction, limitation_period, appeal, other]
+        classification:
+          type: string
+          enum: [mandatory, advisory]
+        department:
+          type: string
+        isInferred:
+          type: boolean
+        directiveId:
+          type: integer
+        daysRemaining:
+          type: integer
+          nullable: true
+        isOverdue:
+          type: boolean
+      required:
+        - date
+        - title
+        - description
+        - type
+        - classification
+        - department
+        - isInferred
+        - directiveId
+        - isOverdue
+
+    DashboardSummary:
+      type: object
+      properties:
+        totalCases:
+          type: integer
+        casesUnderReview:
+          type: integer
+        casesVerified:
+          type: integer
+        totalActionItems:
+          type: integer
+        pendingVerifications:
+          type: integer
+        overdueItems:
+          type: integer
+        criticalItems:
+          type: integer
+        avgProcessingMinutes:
+          type: number
+          nullable: true
+        mandatoryDirectivesTotal:
+          type: integer
+        advisoryDirectivesTotal:
+          type: integer
+      required:
+        - totalCases
+        - casesUnderReview
+        - casesVerified
+        - totalActionItems
+        - pendingVerifications
+        - overdueItems
+        - criticalItems
+        - mandatoryDirectivesTotal
+        - advisoryDirectivesTotal
+
+    UrgentItem:
+      type: object
+      properties:
+        actionItemId:
+          type: integer
+        caseId:
+          type: integer
+        caseNumber:
+          type: string
+        court:
+          type: string
+        title:
+          type: string
+        department:
+          type: string
+        deadline:
+          type: string
+          format: date
+        daysRemaining:
+          type: integer
+        isOverdue:
+          type: boolean
+        classification:
+          type: string
+          enum: [mandatory, advisory]
+        priority:
+          type: string
+          enum: [critical, high, medium, low]
+      required:
+        - actionItemId
+        - caseId
+        - caseNumber
+        - court
+        - title
+        - department
+        - deadline
+        - daysRemaining
+        - isOverdue
+        - classification
+        - priority
+
+    DepartmentWorkload:
+      type: object
+      properties:
+        department:
+          type: string
+        totalItems:
+          type: integer
+        pendingItems:
+          type: integer
+        overdueItems:
+          type: integer
+        completedItems:
+          type: integer
+        mandatoryCount:
+          type: integer
+        advisoryCount:
+          type: integer
+      required:
+        - department
+        - totalItems
+        - pendingItems
+        - overdueItems
+        - completedItems
+        - mandatoryCount
+        - advisoryCount
+
+    ActivityItem:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [judgment_uploaded, processing_started, processing_completed, directive_verified, directive_edited, directive_rejected, action_item_updated, case_created]
+        caseId:
+          type: integer
+        caseNumber:
+          type: string
+        description:
+          type: string
+        reviewer:
+          type: string
+          nullable: true
+        timestamp:
+          type: string
+          format: date-time
+      required: [id, type, caseId, caseNumber, description, timestamp]
+
+    AuditEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        caseNumber:
+          type: string
+        directiveId:
+          type: integer
+          nullable: true
+        eventType:
+          type: string
+          enum: [extraction, verification, edit, rejection, processing]
+        modelVersion:
+          type: string
+          nullable: true
+        pdfHash:
+          type: string
+          nullable: true
+        extractedValue:
+          type: string
+          nullable: true
+        confidenceScore:
+          type: number
+          nullable: true
+        reviewerName:
+          type: string
+          nullable: true
+        reviewerDecision:
+          type: string
+          nullable: true
+        correctedValue:
+          type: string
+          nullable: true
+        statedReason:
+          type: string
+          nullable: true
+        timestamp:
+          type: string
+          format: date-time
+      required: [id, caseId, caseNumber, eventType, timestamp]
