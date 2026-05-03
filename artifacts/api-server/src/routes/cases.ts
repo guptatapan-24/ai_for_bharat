@@ -187,7 +187,7 @@ router.post("/cases", async (req, res) => {
       court: data.court,
       bench: data.bench,
       benchType: data.benchType,
-      dateOfOrder: data.dateOfOrder ? String(data.dateOfOrder) : undefined,
+      dateOfOrder: data.dateOfOrder ? (data.dateOfOrder as Date).toISOString().split("T")[0] : undefined,
       petitioner: data.petitioner,
       respondent: data.respondent,
       governmentRole: data.governmentRole,
@@ -280,7 +280,7 @@ router.patch("/cases/:id", async (req, res) => {
   const updates: Record<string, unknown> = { updatedAt: new Date() };
   if (data.bench !== undefined) updates.bench = data.bench;
   if (data.benchType !== undefined) updates.benchType = data.benchType;
-  if (data.dateOfOrder !== undefined) updates.dateOfOrder = data.dateOfOrder ? String(data.dateOfOrder) : null;
+  if (data.dateOfOrder !== undefined) updates.dateOfOrder = data.dateOfOrder ? (data.dateOfOrder as Date).toISOString().split("T")[0] : null;
   if (data.petitioner !== undefined) updates.petitioner = data.petitioner;
   if (data.respondent !== undefined) updates.respondent = data.respondent;
   if (data.governmentRole !== undefined) updates.governmentRole = data.governmentRole;
