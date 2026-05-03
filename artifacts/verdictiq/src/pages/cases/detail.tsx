@@ -20,6 +20,7 @@ import { useToast } from "@/hooks/use-toast";
 
 interface UploadResult {
   pageCount: number;
+  parseError: string | null;
   isScanned: boolean;
   ocrConfidence: number | null;
   lowConfidencePages: number[];
@@ -252,12 +253,16 @@ export default function CaseDetail() {
                     <div className="rounded-xl border bg-card p-5 space-y-4">
                       <div className="flex items-start justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                            <FileCheck className="w-5 h-5 text-primary" />
+                          <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${uploadResult.parseError ? "bg-amber-100 dark:bg-amber-950/30" : "bg-primary/10"}`}>
+                            <FileCheck className={`w-5 h-5 ${uploadResult.parseError ? "text-amber-600" : "text-primary"}`} />
                           </div>
                           <div>
-                            <p className="font-semibold text-foreground">PDF Parsed Successfully</p>
-                            <p className="text-sm text-muted-foreground">{uploadResult.pageCount} pages · {uploadResult.isScanned ? "Scanned document" : "Digital text"}</p>
+                            <p className="font-semibold text-foreground">
+                              {uploadResult.parseError ? "PDF Uploaded (text extraction limited)" : "PDF Parsed Successfully"}
+                            </p>
+                            <p className="text-sm text-muted-foreground">
+                              {uploadResult.pageCount > 0 ? `${uploadResult.pageCount} pages` : "Page count unavailable"} · {uploadResult.isScanned ? "Scanned document" : "Digital text"}
+                            </p>
                           </div>
                         </div>
                         <Button
@@ -273,7 +278,9 @@ export default function CaseDetail() {
                       <div className="grid grid-cols-3 gap-3 text-sm">
                         <div className="bg-muted/40 rounded-lg p-3">
                           <div className="text-muted-foreground text-xs uppercase tracking-wider font-medium mb-1">Pages</div>
-                          <div className="font-bold text-xl">{uploadResult.pageCount}</div>
+                          <div className={`font-bold text-xl ${uploadResult.pageCount === 0 ? "text-muted-foreground" : ""}`}>
+                            {uploadResult.pageCount > 0 ? uploadResult.pageCount : "—"}
+                          </div>
                         </div>
                         <div className={`rounded-lg p-3 ${uploadResult.isScanned ? "bg-amber-50 dark:bg-amber-950/20" : "bg-muted/40"}`}>
                           <div className="text-muted-foreground text-xs uppercase tracking-wider font-medium mb-1">Type</div>

@@ -1,9 +1,16 @@
 import { Router } from "express";
 import multer from "multer";
+import { createRequire } from "node:module";
 import { db } from "@workspace/db";
 import { casesTable, judgmentsTable, auditLogTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
 import { createHash } from "node:crypto";
+
+const require = createRequire(import.meta.url);
+const pdfParse = require("pdf-parse") as (
+  buf: Buffer,
+  opts?: Record<string, unknown>
+) => Promise<{ numpages: number; text: string }>;
 
 const router = Router();
 
@@ -38,32 +45,36 @@ router.post("/cases/:id/upload", upload.single("pdf"), async (req, res) => {
 
   let extractedText = "";
   let pageCount = 0;
+  let parseError: string | null = null;
   let isScanned = false;
   let ocrConfidence: number | null = null;
   let lowConfidencePages: number[] = [];
 
   try {
-    const pdfParse = await import("pdf-parse");
-    const pdfData = await pdfParse.default(pdfBuffer);
+    const pdfData = await pdfParse(pdfBuffer, { max: 0 });
     extractedText = pdfData.text ?? "";
     pageCount = pdfData.numpages ?? 0;
 
-    const textDensity = extractedText.replace(/\s+/g, "").length / Math.max(pageCount, 1);
+    const textDensity =
+      extractedText.replace(/\s+/g, "").length / Math.max(pageCount, 1);
     isScanned = textDensity < 50;
 
     if (!isScanned) {
       ocrConfidence = Math.min(0.99, 0.88 + Math.random() * 0.11);
     } else {
-      ocrConfidence = 0.45 + Math.random() * 0.30;
-      lowConfidencePages = Array.from({ length: Math.ceil(pageCount * 0.3) }, (_, i) =>
-        Math.floor(Math.random() * pageCount) + 1
+      ocrConfidence = 0.45 + Math.random() * 0.3;
+      lowConfidencePages = Array.from(
+        { length: Math.ceil(pageCount * 0.3) },
+        () => Math.floor(Math.random() * pageCount) + 1
       );
     }
   } catch (err) {
-    req.log.warn({ err }, "pdf-parse failed, treating as scanned");
+    const msg = err instanceof Error ? err.message : String(err);
+    req.log.warn({ err }, "pdf-parse failed");
+    parseError = msg;
     isScanned = true;
-    ocrConfidence = 0.55;
-    pageCount = Math.floor(pdfBuffer.length / 3000) + 1;
+    ocrConfidence = null;
+    pageCount = 0;
     extractedText = "";
   }
 
@@ -73,48 +84,52 @@ router.post("/cases/:id/upload", upload.single("pdf"), async (req, res) => {
     .where(eq(judgmentsTable.caseId, caseId))
     .then((r) => r[0]);
 
+  const judgmentValues = {
+    pdfHash,
+    pageCount: pageCount || 0,
+    isScanned,
+    overallOcrConfidence: ocrConfidence,
+    lowConfidencePages: JSON.stringify(lowConfidencePages),
+    rawTextPreview: extractedText.slice(0, 1000) || null,
+  };
+
   if (existing) {
     await db
       .update(judgmentsTable)
-      .set({
-        pdfHash,
-        pageCount,
-        isScanned,
-        overallOcrConfidence: ocrConfidence,
-        lowConfidencePages: JSON.stringify(lowConfidencePages),
-        rawTextPreview: extractedText.slice(0, 1000) || null,
-      })
+      .set(judgmentValues)
       .where(eq(judgmentsTable.caseId, caseId));
   } else {
     await db.insert(judgmentsTable).values({
       caseId,
-      pdfHash,
-      pageCount,
-      isScanned,
-      overallOcrConfidence: ocrConfidence,
-      lowConfidencePages: JSON.stringify(lowConfidencePages),
+      ...judgmentValues,
       modelVersion: "gpt-5.4",
-      rawTextPreview: extractedText.slice(0, 1000) || null,
     });
   }
+
+  const pageLabel = pageCount > 0 ? `${pageCount} pages` : "unknown pages";
+  const typeLabel = parseError
+    ? `parse error: ${parseError.slice(0, 80)}`
+    : isScanned
+    ? `scanned (OCR confidence ${ocrConfidence !== null ? (ocrConfidence * 100).toFixed(0) + "%" : "unknown"})`
+    : "digital text";
 
   await db.insert(auditLogTable).values({
     caseId,
     caseNumber: caseRow.caseNumber,
     eventType: "judgment_uploaded",
     pdfHash,
-    description: `PDF uploaded: ${pageCount} pages, ${isScanned ? "scanned (OCR confidence " + (ocrConfidence! * 100).toFixed(0) + "%)" : "digital text"}, ${extractedText.length} characters extracted`,
+    description: `PDF uploaded: ${pageLabel}, ${typeLabel}, ${extractedText.length} characters extracted`,
   });
 
-  const textForExtraction = extractedText.length > 200
-    ? extractedText.slice(0, 32000)
-    : null;
+  const textForExtraction =
+    extractedText.length > 200 ? extractedText.slice(0, 32000) : null;
 
   return res.json({
     success: true,
     caseId,
     pdfHash,
     pageCount,
+    parseError,
     isScanned,
     ocrConfidence,
     lowConfidencePages,
