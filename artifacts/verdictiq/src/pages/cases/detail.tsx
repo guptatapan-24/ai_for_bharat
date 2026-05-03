@@ -1,7 +1,7 @@
-import { useParams, Link, useLocation } from "wouter";
+import { useParams, Link } from "wouter";
+import { useState, useRef, useCallback } from "react";
 import { 
   useGetCase, 
-  useProcessCase, 
   getGetCaseQueryKey, 
   useListDirectives,
   useGetActionPlan,
@@ -13,9 +13,20 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowLeft, CheckCircle2, Clock, Cpu, FileText, Loader2, PlayCircle, ShieldAlert, History, Calendar } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { ArrowLeft, CheckCircle2, Clock, Cpu, FileText, Loader2, Upload, ShieldAlert, History, Calendar, AlertTriangle, ScanLine, FileCheck } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
+
+interface UploadResult {
+  pageCount: number;
+  isScanned: boolean;
+  ocrConfidence: number | null;
+  lowConfidencePages: number[];
+  hasExtractedText: boolean;
+  textPreview: string | null;
+  textForExtraction: string | null;
+}
 
 export default function CaseDetail() {
   const { id } = useParams<{ id: string }>();
@@ -23,48 +34,101 @@ export default function CaseDetail() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  const [isDragging, setIsDragging] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const { data: caseData, isLoading } = useGetCase(caseId, {
     query: { enabled: !!caseId, queryKey: getGetCaseQueryKey(caseId) }
   });
 
   const { data: directives, isLoading: isDirectivesLoading } = useListDirectives(caseId, {}, {
-    query: { enabled: !!caseId }
+    query: { enabled: !!caseId, queryKey: ["directives", caseId] }
   });
 
   const { data: actionPlan, isLoading: isActionPlanLoading } = useGetActionPlan(caseId, {
-    query: { enabled: !!caseId }
+    query: { enabled: !!caseId, queryKey: ["action-plan", caseId] }
   });
 
   const { data: timeline, isLoading: isTimelineLoading } = useGetComplianceTimeline(caseId, {
-    query: { enabled: !!caseId }
+    query: { enabled: !!caseId, queryKey: ["timeline", caseId] }
   });
 
   const { data: auditLog, isLoading: isAuditLoading } = useGetAuditLog({ caseId, limit: 50 }, {
-    query: { enabled: !!caseId }
+    query: { enabled: !!caseId, queryKey: ["audit-log", caseId] }
   });
 
-  const processCase = useProcessCase();
-
-  const handleProcess = () => {
-    processCase.mutate({ id: caseId }, {
-      onSuccess: (result) => {
-        const count = result.directivesExtracted ?? 0;
-        toast({
-          title: count > 0 ? `${count} Directives Extracted` : "Processing Complete",
-          description: count > 0
-            ? `AI extracted ${count} directives from the judgment. Review and verify each one below.`
-            : "Processing completed. No directives found — check case notes or add judgment text.",
-        });
-        queryClient.invalidateQueries({ queryKey: getGetCaseQueryKey(caseId) });
-      },
-      onError: () => {
-        toast({
-          title: "Extraction Failed",
-          description: "AI processing encountered an error. Please try again.",
-          variant: "destructive",
-        });
+  const handleUploadFile = useCallback(async (file: File) => {
+    if (!file || file.type !== "application/pdf") {
+      toast({ title: "Invalid file", description: "Only PDF files are accepted.", variant: "destructive" });
+      return;
+    }
+    setIsUploading(true);
+    setUploadProgress(10);
+    try {
+      const formData = new FormData();
+      formData.append("pdf", file);
+      setUploadProgress(30);
+      const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+      const res = await fetch(`${base}/api/cases/${caseId}/upload`, { method: "POST", body: formData });
+      setUploadProgress(80);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error((err as { error?: string }).error ?? "Upload failed");
       }
-    });
+      const data: UploadResult = await res.json();
+      setUploadProgress(100);
+      setUploadResult(data);
+      queryClient.invalidateQueries({ queryKey: getGetCaseQueryKey(caseId) });
+      toast({
+        title: `PDF Uploaded — ${data.pageCount} pages`,
+        description: data.isScanned
+          ? `Scanned document detected. OCR confidence: ${Math.round((data.ocrConfidence ?? 0) * 100)}%. Ready for AI extraction.`
+          : `Digital PDF parsed. ${data.hasExtractedText ? "Full text extracted." : "Limited text found."} Ready for AI extraction.`,
+      });
+    } catch (err) {
+      toast({ title: "Upload Failed", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
+    } finally {
+      setIsUploading(false);
+    }
+  }, [caseId, queryClient, toast]);
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleUploadFile(file);
+  }, [handleUploadFile]);
+
+  const [isExtracting, setIsExtracting] = useState(false);
+
+  const handleProcess = async (textForExtraction?: string | null) => {
+    setIsExtracting(true);
+    try {
+      const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+      const res = await fetch(`${base}/api/cases/${caseId}/process`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(textForExtraction ? { judgmentText: textForExtraction } : {}),
+      });
+      if (!res.ok) throw new Error("Extraction failed");
+      const result = await res.json();
+      const count = result.directivesExtracted ?? 0;
+      toast({
+        title: count > 0 ? `${count} Directives Extracted` : "Processing Complete",
+        description: count > 0
+          ? `AI extracted ${count} directives from the judgment. Review and verify each one below.`
+          : "No directives found — the AI may need more context. Try adding case notes.",
+      });
+      queryClient.invalidateQueries({ queryKey: getGetCaseQueryKey(caseId) });
+      setUploadResult(null);
+    } catch {
+      toast({ title: "Extraction Failed", description: "AI processing encountered an error. Please try again.", variant: "destructive" });
+    } finally {
+      setIsExtracting(false);
+    }
   };
 
   if (isLoading) {
@@ -101,8 +165,8 @@ export default function CaseDetail() {
 
           <div className="flex gap-2">
             {caseData.status === "pending" && (
-              <Button onClick={handleProcess} disabled={processCase.isPending} className="bg-amber-600 hover:bg-amber-700 text-white">
-                {processCase.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Cpu className="w-4 h-4 mr-2" />}
+              <Button onClick={() => handleProcess(uploadResult?.textForExtraction)} disabled={isExtracting} className="bg-amber-600 hover:bg-amber-700 text-white">
+                {isExtracting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Cpu className="w-4 h-4 mr-2" />}
                 Extract Directives (AI)
               </Button>
             )}
@@ -141,15 +205,135 @@ export default function CaseDetail() {
             
             <TabsContent value="directives" className="p-6">
               {caseData.status === "pending" ? (
-                <div className="text-center py-12 border-2 border-dashed rounded-lg bg-muted/20">
-                  <PlayCircle className="w-12 h-12 text-muted-foreground mx-auto mb-4 opacity-50" />
-                  <h3 className="text-lg font-medium">Ready for Processing</h3>
-                  <p className="text-muted-foreground max-w-md mx-auto mt-2 mb-6">
-                    The case is registered. Click "Extract Directives" to use AI to read the judgment and identify compliance requirements.
-                  </p>
-                  <Button onClick={handleProcess} disabled={processCase.isPending}>
-                    Start Extraction
-                  </Button>
+                <div className="space-y-5">
+                  {/* PDF Upload Zone */}
+                  {!uploadResult ? (
+                    <div
+                      data-testid="pdf-drop-zone"
+                      className={`relative border-2 border-dashed rounded-xl transition-all duration-200 cursor-pointer ${
+                        isDragging
+                          ? "border-primary bg-primary/5 scale-[1.01]"
+                          : "border-muted-foreground/25 hover:border-primary/50 hover:bg-muted/20"
+                      }`}
+                      onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                      onDragLeave={() => setIsDragging(false)}
+                      onDrop={handleDrop}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="application/pdf"
+                        className="hidden"
+                        data-testid="input-pdf-file"
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleUploadFile(file);
+                        }}
+                      />
+                      <div className="py-14 px-8 text-center">
+                        {isUploading ? (
+                          <div className="space-y-4 max-w-xs mx-auto">
+                            <Loader2 className="w-10 h-10 text-primary mx-auto animate-spin" />
+                            <p className="font-medium text-sm">Uploading and parsing PDF...</p>
+                            <Progress value={uploadProgress} className="h-1.5" />
+                          </div>
+                        ) : (
+                          <>
+                            <Upload className="w-10 h-10 text-muted-foreground mx-auto mb-4 opacity-60" />
+                            <p className="font-semibold text-foreground">Drop judgment PDF here</p>
+                            <p className="text-sm text-muted-foreground mt-1.5">or click to browse — digital and scanned PDFs accepted, up to 50 MB</p>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    /* Upload Complete — Show Parsed Metadata */
+                    <div className="rounded-xl border bg-card p-5 space-y-4">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                            <FileCheck className="w-5 h-5 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-foreground">PDF Parsed Successfully</p>
+                            <p className="text-sm text-muted-foreground">{uploadResult.pageCount} pages · {uploadResult.isScanned ? "Scanned document" : "Digital text"}</p>
+                          </div>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-muted-foreground text-xs"
+                          onClick={() => setUploadResult(null)}
+                        >
+                          Replace
+                        </Button>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-3 text-sm">
+                        <div className="bg-muted/40 rounded-lg p-3">
+                          <div className="text-muted-foreground text-xs uppercase tracking-wider font-medium mb-1">Pages</div>
+                          <div className="font-bold text-xl">{uploadResult.pageCount}</div>
+                        </div>
+                        <div className={`rounded-lg p-3 ${uploadResult.isScanned ? "bg-amber-50 dark:bg-amber-950/20" : "bg-muted/40"}`}>
+                          <div className="text-muted-foreground text-xs uppercase tracking-wider font-medium mb-1">Type</div>
+                          <div className="font-semibold flex items-center gap-1.5">
+                            {uploadResult.isScanned
+                              ? <><ScanLine className="w-3.5 h-3.5 text-amber-600" /><span className="text-amber-700">Scanned</span></>
+                              : <><FileText className="w-3.5 h-3.5 text-emerald-600" /><span className="text-emerald-700">Digital</span></>
+                            }
+                          </div>
+                        </div>
+                        <div className={`rounded-lg p-3 ${uploadResult.ocrConfidence !== null && uploadResult.ocrConfidence < 0.7 ? "bg-amber-50 dark:bg-amber-950/20" : "bg-muted/40"}`}>
+                          <div className="text-muted-foreground text-xs uppercase tracking-wider font-medium mb-1">Confidence</div>
+                          <div className={`font-bold text-xl ${uploadResult.ocrConfidence !== null && uploadResult.ocrConfidence < 0.7 ? "text-amber-600" : "text-emerald-600"}`}>
+                            {uploadResult.ocrConfidence !== null ? `${Math.round(uploadResult.ocrConfidence * 100)}%` : "—"}
+                          </div>
+                        </div>
+                      </div>
+
+                      {uploadResult.isScanned && uploadResult.ocrConfidence !== null && uploadResult.ocrConfidence < 0.7 && (
+                        <div className="flex items-start gap-2.5 text-sm rounded-lg bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 p-3">
+                          <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
+                          <div>
+                            <span className="font-semibold text-amber-800 dark:text-amber-400">Low OCR confidence</span>
+                            <span className="text-amber-700 dark:text-amber-500 ml-1">
+                              {uploadResult.lowConfidencePages.length > 0
+                                ? `Pages ${uploadResult.lowConfidencePages.slice(0, 5).join(", ")} may be misread. Reviewer should cross-check source text.`
+                                : "Some pages may be misread. Reviewer should cross-check extracted source text."}
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
+                      {uploadResult.textPreview && (
+                        <div className="bg-muted/30 rounded-lg p-3 text-xs font-mono text-muted-foreground border leading-relaxed max-h-24 overflow-hidden relative">
+                          {uploadResult.textPreview}
+                          <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-muted/30 to-transparent rounded-b-lg" />
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Extract Button */}
+                  <div className="flex items-center gap-3">
+                    <Button
+                      onClick={() => handleProcess(uploadResult?.textForExtraction)}
+                      disabled={isExtracting}
+                      className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-6"
+                      data-testid="button-extract-directives"
+                    >
+                      {isExtracting
+                        ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Extracting…</>
+                        : <><Cpu className="w-4 h-4 mr-2" />{uploadResult ? "Extract Directives from PDF" : "Extract Directives (from case metadata)"}</>
+                      }
+                    </Button>
+                    <p className="text-xs text-muted-foreground">
+                      {uploadResult
+                        ? "AI will read the full PDF text to identify all directives, deadlines, and compliance obligations."
+                        : "No PDF uploaded. AI will extract based on case metadata and notes."}
+                    </p>
+                  </div>
                 </div>
               ) : caseData.status === "processing" ? (
                 <div className="text-center py-12 border-2 border-dashed rounded-lg bg-muted/20">

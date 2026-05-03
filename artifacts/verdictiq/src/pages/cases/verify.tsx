@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
-import { ShieldAlert, Check, X, Edit2, ArrowLeft, Loader2, HelpCircle } from "lucide-react";
+import { ShieldAlert, Check, X, Edit2, ArrowLeft, Loader2, HelpCircle, CheckCircle2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { Directive } from "@workspace/api-client-react";
