@@ -47,12 +47,22 @@ export default function CaseDetail() {
 
   const handleProcess = () => {
     processCase.mutate({ id: caseId }, {
-      onSuccess: () => {
+      onSuccess: (result) => {
+        const count = result.directivesExtracted ?? 0;
         toast({
-          title: "Processing Started",
-          description: "AI extraction is analyzing the judgment. This may take a few minutes."
+          title: count > 0 ? `${count} Directives Extracted` : "Processing Complete",
+          description: count > 0
+            ? `AI extracted ${count} directives from the judgment. Review and verify each one below.`
+            : "Processing completed. No directives found — check case notes or add judgment text.",
         });
         queryClient.invalidateQueries({ queryKey: getGetCaseQueryKey(caseId) });
+      },
+      onError: () => {
+        toast({
+          title: "Extraction Failed",
+          description: "AI processing encountered an error. Please try again.",
+          variant: "destructive",
+        });
       }
     });
   };
