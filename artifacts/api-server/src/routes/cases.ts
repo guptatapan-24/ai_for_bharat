@@ -50,6 +50,38 @@ interface Chunk {
   index: number;
 }
 
+/** Return a valid YYYY-MM-DD string or null. Rejects descriptive text the AI sometimes returns. */
+function sanitizeDate(val: string | null | undefined): string | null {
+  if (!val) return null;
+  const trimmed = val.trim().split("T")[0];
+  return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : null;
+}
+
+const VALID_DIRECTIVE_TYPES = new Set([
+  "compliance_order", "stay", "direction", "limitation_period", "appeal", "observation", "other",
+]);
+function sanitizeDirectiveType(val: string): "compliance_order" | "stay" | "direction" | "limitation_period" | "appeal" | "observation" | "other" {
+  if (VALID_DIRECTIVE_TYPES.has(val)) return val as ReturnType<typeof sanitizeDirectiveType>;
+  // Common AI mis-labels → best-fit mapping
+  const lower = val.toLowerCase();
+  if (lower.includes("stay") || lower.includes("interim") || lower.includes("injunct")) return "stay";
+  if (lower.includes("comply") || lower.includes("compliance")) return "compliance_order";
+  if (lower.includes("appeal")) return "appeal";
+  if (lower.includes("limit") || lower.includes("period")) return "limitation_period";
+  if (lower.includes("direct") || lower.includes("order")) return "direction";
+  if (lower.includes("observ")) return "observation";
+  return "other";
+}
+
+const VALID_CLASSIFICATIONS = new Set(["mandatory", "advisory", "unknown"]);
+function sanitizeClassification(val: string): "mandatory" | "advisory" | "unknown" {
+  if (VALID_CLASSIFICATIONS.has(val)) return val as ReturnType<typeof sanitizeClassification>;
+  const lower = val.toLowerCase();
+  if (lower.includes("mandatory") || lower.includes("order") || lower.includes("direct") || lower.includes("shall")) return "mandatory";
+  if (lower.includes("advisory") || lower.includes("suggest") || lower.includes("recommend")) return "advisory";
+  return "unknown";
+}
+
 /** Split full judgment text into overlapping chunks.
  *  Strategy for Indian court judgments:
  *  - Last 40% (operative part): 65% of chunk budget, evenly spaced
@@ -179,7 +211,7 @@ For each directive found, return:
   "confidenceScore": 0.0-1.0
 }
 
-Return {"directives": [...]} — may be empty.`;
+Return a JSON object with key "directives" containing the array — e.g. {"directives": [...]}. May be empty.`;
 
   const userPrompt = `CASE CONTEXT:
 ${caseContext}
@@ -229,7 +261,7 @@ Extract 5–9 plausible directives a court would typically issue in a case of th
 For each directive return:
 { "type", "classification", "sourceText", "pageNumber", "paragraphRef", "deadline", "deadlineInferred", "deadlineSource", "responsibleDepartment", "actionRequired", "isNovel", "confidenceScore" }
 
-Return {"directives": [...]}.`;
+Return a JSON object: {"directives": [...]}.`;
 
   const response = await openai.chat.completions.create({
     model: MODEL,
@@ -284,6 +316,11 @@ async function extractDirectivesFromFullText(
     for (const result of results) {
       if (result.status === "fulfilled") {
         allDirectives.push(...result.value);
+      } else {
+        logger.info(
+          { batchStart: i, error: String(result.reason), stack: result.reason?.stack?.slice(0, 500) },
+          "Chunk extraction error"
+        );
       }
     }
 
@@ -607,8 +644,8 @@ router.post("/cases/:id/process", async (req, res) => {
       extracted = await extractDirectivesWithAI(caseRow);
     }
 
-    await db.delete(directivesTable).where(eq(directivesTable.caseId, caseRow.id));
     await db.delete(actionItemsTable).where(eq(actionItemsTable.caseId, caseRow.id));
+    await db.delete(directivesTable).where(eq(directivesTable.caseId, caseRow.id));
 
     let inserted = 0;
     for (const d of extracted) {
@@ -617,12 +654,12 @@ router.post("/cases/:id/process", async (req, res) => {
         .values({
           caseId: caseRow.id,
           judgmentId: existingJudgment.id,
-          type: d.type,
-          classification: d.classification,
+          type: sanitizeDirectiveType(d.type),
+          classification: sanitizeClassification(d.classification),
           sourceText: d.sourceText,
           pageNumber: d.pageNumber,
           paragraphRef: d.paragraphRef ?? null,
-          deadline: d.deadline ? d.deadline.split("T")[0] : null,
+          deadline: sanitizeDate(d.deadline),
           deadlineInferred: d.deadlineInferred,
           deadlineSource: d.deadlineSource ?? null,
           responsibleDepartment: d.responsibleDepartment,
@@ -643,7 +680,7 @@ router.post("/cases/:id/process", async (req, res) => {
           ? (d.type === "stay" || d.type === "compliance_order" ? "critical" : "high")
           : "medium",
         classification: d.classification,
-        deadline: d.deadline ? d.deadline.split("T")[0] : null,
+        deadline: sanitizeDate(d.deadline),
         deadlineInferred: d.deadlineInferred,
         status: "pending",
         sourcePageNumber: d.pageNumber,
