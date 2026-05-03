@@ -104,15 +104,20 @@ export default function CaseDetail() {
   }, [handleUploadFile]);
 
   const [isExtracting, setIsExtracting] = useState(false);
+  const [extractElapsed, setExtractElapsed] = useState(0);
 
-  const handleProcess = async (textForExtraction?: string | null) => {
+  const handleProcess = async () => {
     setIsExtracting(true);
+    setExtractElapsed(0);
+    const start = Date.now();
+    const timer = setInterval(() => setExtractElapsed(Math.floor((Date.now() - start) / 1000)), 1000);
     try {
       const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+      // No need to pass judgment text — it is stored server-side after upload
       const res = await fetch(`${base}/api/cases/${caseId}/process`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(textForExtraction ? { judgmentText: textForExtraction } : {}),
+        body: JSON.stringify({}),
       });
       if (!res.ok) throw new Error("Extraction failed");
       const result = await res.json();
@@ -120,7 +125,7 @@ export default function CaseDetail() {
       toast({
         title: count > 0 ? `${count} Directives Extracted` : "Processing Complete",
         description: count > 0
-          ? `AI extracted ${count} directives from the judgment. Review and verify each one below.`
+          ? `AI extracted ${count} directives from the full judgment. Review and verify each one below.`
           : "No directives found — the AI may need more context. Try adding case notes.",
       });
       queryClient.invalidateQueries({ queryKey: getGetCaseQueryKey(caseId) });
@@ -128,6 +133,7 @@ export default function CaseDetail() {
     } catch {
       toast({ title: "Extraction Failed", description: "AI processing encountered an error. Please try again.", variant: "destructive" });
     } finally {
+      clearInterval(timer);
       setIsExtracting(false);
     }
   };
@@ -166,9 +172,10 @@ export default function CaseDetail() {
 
           <div className="flex gap-2">
             {caseData.status === "pending" && (
-              <Button onClick={() => handleProcess(uploadResult?.textForExtraction)} disabled={isExtracting} className="bg-amber-600 hover:bg-amber-700 text-white">
-                {isExtracting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Cpu className="w-4 h-4 mr-2" />}
-                Extract Directives (AI)
+              <Button onClick={() => handleProcess()} disabled={isExtracting} className="bg-amber-600 hover:bg-amber-700 text-white">
+                {isExtracting
+                  ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Extracting{extractElapsed > 0 ? ` (${extractElapsed}s)` : "…"}</>
+                  : <><Cpu className="w-4 h-4 mr-2" />Extract Directives (AI)</>}
               </Button>
             )}
             {canVerify && (
@@ -325,19 +332,21 @@ export default function CaseDetail() {
                   {/* Extract Button */}
                   <div className="flex items-center gap-3">
                     <Button
-                      onClick={() => handleProcess(uploadResult?.textForExtraction)}
+                      onClick={() => handleProcess()}
                       disabled={isExtracting}
                       className="bg-amber-600 hover:bg-amber-700 text-white font-semibold px-6"
                       data-testid="button-extract-directives"
                     >
                       {isExtracting
-                        ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Extracting…</>
-                        : <><Cpu className="w-4 h-4 mr-2" />{uploadResult ? "Extract Directives from PDF" : "Extract Directives (from case metadata)"}</>
+                        ? <><Loader2 className="w-4 h-4 mr-2 animate-spin" />Extracting{extractElapsed > 0 ? ` (${extractElapsed}s)` : "…"}</>
+                        : <><Cpu className="w-4 h-4 mr-2" />{uploadResult ? "Extract Directives from Full PDF" : "Extract Directives (from case metadata)"}</>
                       }
                     </Button>
                     <p className="text-xs text-muted-foreground">
                       {uploadResult
-                        ? "AI will read the full PDF text to identify all directives, deadlines, and compliance obligations."
+                        ? uploadResult.pageCount > 30
+                          ? `AI will scan all ${uploadResult.pageCount} pages in chunks — may take 1–3 minutes for large judgments.`
+                          : "AI will read the full judgment to identify all directives, deadlines, and compliance obligations."
                         : "No PDF uploaded. AI will extract based on case metadata and notes."}
                     </p>
                   </div>
@@ -345,9 +354,9 @@ export default function CaseDetail() {
               ) : caseData.status === "processing" ? (
                 <div className="text-center py-12 border-2 border-dashed rounded-lg bg-muted/20">
                   <Loader2 className="w-12 h-12 text-primary mx-auto mb-4 animate-spin" />
-                  <h3 className="text-lg font-medium">Processing Judgment...</h3>
+                  <h3 className="text-lg font-medium">Extracting Directives…</h3>
                   <p className="text-muted-foreground max-w-md mx-auto mt-2">
-                    The system is currently extracting and classifying directives. This may take a minute or two.
+                    The AI is reading the judgment in chunks and extracting compliance directives from every page. Large documents (100+ pages) may take 1–3 minutes — please keep this tab open.
                   </p>
                 </div>
               ) : (

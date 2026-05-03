@@ -84,13 +84,14 @@ router.post("/cases/:id/upload", upload.single("pdf"), async (req, res) => {
     .where(eq(judgmentsTable.caseId, caseId))
     .then((r) => r[0]);
 
+  // Store the full extracted text — the process route reads this for chunked extraction
   const judgmentValues = {
     pdfHash,
     pageCount: pageCount || 0,
     isScanned,
     overallOcrConfidence: ocrConfidence,
     lowConfidencePages: JSON.stringify(lowConfidencePages),
-    rawTextPreview: extractedText.slice(0, 1000) || null,
+    rawTextPreview: extractedText || null,
   };
 
   if (existing) {
@@ -118,11 +119,8 @@ router.post("/cases/:id/upload", upload.single("pdf"), async (req, res) => {
     caseNumber: caseRow.caseNumber,
     eventType: "judgment_uploaded",
     pdfHash,
-    description: `PDF uploaded: ${pageLabel}, ${typeLabel}, ${extractedText.length} characters extracted`,
+    description: `PDF uploaded: ${pageLabel}, ${typeLabel}, ${extractedText.length.toLocaleString()} characters extracted`,
   });
-
-  const textForExtraction =
-    extractedText.length > 200 ? extractedText.slice(0, 32000) : null;
 
   return res.json({
     success: true,
@@ -135,7 +133,9 @@ router.post("/cases/:id/upload", upload.single("pdf"), async (req, res) => {
     lowConfidencePages,
     hasExtractedText: extractedText.length > 200,
     textPreview: extractedText.slice(0, 300) || null,
-    textForExtraction,
+    // textForExtraction is intentionally omitted — full text is stored server-side
+    // and the process route reads it directly from the DB
+    textForExtraction: null,
   });
 });
 
