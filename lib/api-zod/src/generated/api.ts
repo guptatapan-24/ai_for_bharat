@@ -601,6 +601,9 @@ export const GetAuditLogQueryParams = zod.object({
   caseId: zod.coerce.number().optional(),
   reviewer: zod.coerce.string().optional(),
   limit: zod.coerce.number().default(getAuditLogQueryLimitDefault),
+  eventType: zod.coerce.string().optional(),
+  dateFrom: zod.date().optional(),
+  dateTo: zod.date().optional(),
 });
 
 export const GetAuditLogResponseItem = zod.object({
@@ -626,6 +629,61 @@ export const GetAuditLogResponseItem = zod.object({
   timestamp: zod.coerce.date(),
 });
 export const GetAuditLogResponse = zod.array(GetAuditLogResponseItem);
+
+/**
+ * @summary Get extracted text from the uploaded judgment PDF
+ */
+export const GetJudgmentTextParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetJudgmentTextResponse = zod.object({
+  rawTextPreview: zod.string().nullish(),
+  pageCount: zod.number(),
+});
+
+/**
+ * @summary List comments for a case
+ */
+export const ListCaseCommentsParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const ListCaseCommentsResponseItem = zod.object({
+  id: zod.number(),
+  caseId: zod.number(),
+  authorName: zod.string(),
+  authorRole: zod.string(),
+  content: zod.string(),
+  createdAt: zod.coerce.date(),
+});
+export const ListCaseCommentsResponse = zod.array(ListCaseCommentsResponseItem);
+
+/**
+ * @summary Add a comment to a case
+ */
+export const CreateCaseCommentParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const CreateCaseCommentBody = zod.object({
+  content: zod.string(),
+});
+
+/**
+ * @summary List role change history (admin only)
+ */
+export const ListRoleChangesResponseItem = zod.object({
+  id: zod.number(),
+  actorClerkId: zod.string(),
+  actorName: zod.string().nullish(),
+  targetClerkId: zod.string(),
+  targetName: zod.string().nullish(),
+  oldRole: zod.enum(["admin", "reviewer", "viewer"]),
+  newRole: zod.enum(["admin", "reviewer", "viewer"]),
+  changedAt: zod.coerce.date(),
+});
+export const ListRoleChangesResponse = zod.array(ListRoleChangesResponseItem);
 
 /**
  * @summary Get current authenticated user

@@ -8,7 +8,7 @@ import {
   VerifyDirectiveParams,
   VerifyDirectiveBody,
 } from "@workspace/api-zod";
-import { eq, and } from "drizzle-orm";
+import { eq, and, count } from "drizzle-orm";
 import { requireRole } from "../middlewares/auth";
 
 const router = Router();
@@ -135,6 +135,23 @@ router.post("/cases/:id/directives/:directiveId/verify", requireRole(["admin", "
     modelVersion: "gpt-4o",
     description: `Directive on page ${existing.pageNumber} ${decision} by ${reviewerName}`,
   });
+
+  const [{ pendingCount }] = await db
+    .select({ pendingCount: count() })
+    .from(directivesTable)
+    .where(
+      and(
+        eq(directivesTable.caseId, paramParsed.data.id),
+        eq(directivesTable.verificationStatus, "pending")
+      )
+    );
+
+  if (pendingCount === 0) {
+    await db
+      .update(casesTable)
+      .set({ status: "verified", updatedAt: new Date() })
+      .where(eq(casesTable.id, paramParsed.data.id));
+  }
 
   return res.json(updated);
 });

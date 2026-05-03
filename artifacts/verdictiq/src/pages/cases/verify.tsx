@@ -1,7 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useParams, Link, useLocation, Redirect } from "wouter";
 import { useUserRole } from "@/contexts/UserRoleContext";
-import { useGetCase, useListDirectives, useVerifyDirective, getGetCaseQueryKey, getListDirectivesQueryKey } from "@workspace/api-client-react";
+import { useGetCase, useListDirectives, useVerifyDirective, useGetJudgmentText, getGetCaseQueryKey, getListDirectivesQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -29,6 +29,10 @@ export default function VerifyInterface() {
     query: { enabled: !!caseId, queryKey: getListDirectivesQueryKey(caseId) }
   });
 
+  const { data: judgmentText } = useGetJudgmentText(caseId, {
+    query: { enabled: !!caseId, queryKey: ["judgment-text", caseId] }
+  });
+
   const verifyMutation = useVerifyDirective();
   const { isViewer, isLoaded, fullName, email } = useUserRole();
   const reviewerName = fullName ?? email ?? "Unknown User";
@@ -36,6 +40,8 @@ export default function VerifyInterface() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const [editMode, setEditMode] = useState(false);
   const [rejectMode, setRejectMode] = useState(false);
+  const [showFullText, setShowFullText] = useState(false);
+  const highlightRef = useRef<HTMLSpanElement>(null);
   
   // Edit form state
   const [editedAction, setEditedAction] = useState("");
@@ -48,6 +54,12 @@ export default function VerifyInterface() {
   }, [directives]);
 
   const currentDirective = pendingDirectives[currentIndex];
+
+  useEffect(() => {
+    if (highlightRef.current) {
+      highlightRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [currentIndex]);
 
   if (isLoaded && isViewer) return <Redirect to={`/cases/${caseId}`} />;
 
@@ -187,21 +199,65 @@ export default function VerifyInterface() {
 
       <div className="flex-1 overflow-hidden flex">
         {/* Source Text Panel */}
-        <div className="w-1/2 border-r bg-white dark:bg-card p-6 overflow-y-auto flex flex-col">
-          <div className="flex items-center gap-2 mb-4 shrink-0">
-            <Badge variant="outline" className="font-mono bg-muted/50">Page {currentDirective.pageNumber}</Badge>
-            <span className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Source Document Text</span>
-          </div>
-          
-          <div className="bg-slate-50 dark:bg-muted/20 p-6 rounded-md border text-lg leading-relaxed font-serif shadow-inner flex-1">
-            <span className="bg-amber-200/50 dark:bg-amber-900/40 text-foreground rounded py-1 px-1 -mx-1">
-              {currentDirective.sourceText}
-            </span>
-            <div className="mt-8 text-sm text-muted-foreground border-t pt-4 flex items-center gap-2">
-              <HelpCircle className="w-4 h-4" /> 
-              Context from surrounding paragraphs is omitted for focus. Verify the highlighted extraction.
+        <div className="w-1/2 border-r bg-white dark:bg-card p-4 overflow-y-auto flex flex-col">
+          <div className="flex items-center justify-between mb-3 shrink-0 gap-2">
+            <div className="flex items-center gap-2">
+              <Badge variant="outline" className="font-mono bg-muted/50">Page {currentDirective.pageNumber}</Badge>
+              <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                {judgmentText?.rawTextPreview && showFullText ? "Full Judgment Text" : "Source Extract"}
+              </span>
             </div>
+            {judgmentText?.rawTextPreview && (
+              <button
+                onClick={() => setShowFullText(v => !v)}
+                className="text-xs text-primary underline underline-offset-2 hover:no-underline shrink-0"
+              >
+                {showFullText ? "Show extract only" : "Show full text"}
+              </button>
+            )}
           </div>
+
+          {judgmentText?.rawTextPreview && showFullText ? (() => {
+            const fullText = judgmentText.rawTextPreview ?? "";
+            const src = currentDirective.sourceText ?? "";
+            const idx = fullText.indexOf(src);
+            if (idx === -1) {
+              return (
+                <div className="bg-slate-50 dark:bg-muted/20 p-4 rounded-md border text-sm leading-relaxed font-serif shadow-inner flex-1 whitespace-pre-wrap">
+                  {fullText}
+                </div>
+              );
+            }
+            const before = fullText.slice(0, idx);
+            const after = fullText.slice(idx + src.length);
+            return (
+              <div className="bg-slate-50 dark:bg-muted/20 p-4 rounded-md border text-sm leading-relaxed font-serif shadow-inner flex-1 whitespace-pre-wrap overflow-y-auto">
+                {before}
+                <span
+                  ref={highlightRef}
+                  className="bg-amber-200/70 dark:bg-amber-900/50 text-foreground rounded-sm px-0.5"
+                >
+                  {src}
+                </span>
+                {after}
+              </div>
+            );
+          })() : (
+            <div className="bg-slate-50 dark:bg-muted/20 p-6 rounded-md border text-lg leading-relaxed font-serif shadow-inner flex-1">
+              <span
+                ref={highlightRef}
+                className="bg-amber-200/50 dark:bg-amber-900/40 text-foreground rounded py-1 px-1 -mx-1"
+              >
+                {currentDirective.sourceText}
+              </span>
+              <div className="mt-8 text-sm text-muted-foreground border-t pt-4 flex items-center gap-2">
+                <HelpCircle className="w-4 h-4" />
+                {judgmentText?.rawTextPreview
+                  ? 'Use "Show full text" above to read the complete judgment with this passage highlighted.'
+                  : "Context from surrounding paragraphs is omitted for focus. Verify the highlighted extraction."}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Verification Panel */}

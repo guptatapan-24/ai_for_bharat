@@ -1,4 +1,4 @@
-import { useListUsers, useUpdateUserRole, getListUsersQueryKey } from "@workspace/api-client-react";
+import { useListUsers, useUpdateUserRole, getListUsersQueryKey, useListRoleChanges, getListRoleChangesQueryKey } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useUserRole } from "@/contexts/UserRoleContext";
 import { Redirect } from "wouter";
@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
-import { Users, Shield, Eye, Edit3 } from "lucide-react";
+import { Users, Shield, Eye, Edit3, History, ArrowRight } from "lucide-react";
 import type { UserRole } from "@/contexts/UserRoleContext";
 
 const ROLE_META: Record<UserRole, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
@@ -22,7 +22,11 @@ export default function AdminUsers() {
   const queryClient = useQueryClient();
 
   const { data: users, isLoading } = useListUsers({
-    query: { enabled: isLoaded && isAdmin },
+    query: { queryKey: getListUsersQueryKey(), enabled: isLoaded && isAdmin },
+  });
+
+  const { data: roleChanges, isLoading: isRoleChangesLoading } = useListRoleChanges({
+    query: { queryKey: getListRoleChangesQueryKey(), enabled: isLoaded && isAdmin },
   });
 
   const { mutate: updateRole, isPending } = useUpdateUserRole({
@@ -30,6 +34,7 @@ export default function AdminUsers() {
       onSuccess: () => {
         toast({ title: "Role updated" });
         queryClient.invalidateQueries({ queryKey: getListUsersQueryKey() });
+        queryClient.invalidateQueries({ queryKey: ["role-change-log"] });
       },
       onError: () => {
         toast({ title: "Update failed", variant: "destructive" });
@@ -132,6 +137,61 @@ export default function AdminUsers() {
                   </div>
                 );
               })}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <History className="h-4 w-4" />
+            Role Change History
+          </CardTitle>
+          <CardDescription>Recent role assignments made by administrators.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {isRoleChangesLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => <Skeleton key={i} className="h-10 w-full" />)}
+            </div>
+          ) : roleChanges && roleChanges.length > 0 ? (
+            <div className="divide-y divide-border">
+              {roleChanges.map((change) => {
+                const OldIcon = ROLE_META[change.oldRole as UserRole]?.icon ?? Eye;
+                const NewIcon = ROLE_META[change.newRole as UserRole]?.icon ?? Eye;
+                return (
+                  <div key={change.id} className="py-3 flex items-center justify-between gap-4 text-sm">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs font-semibold flex-shrink-0">
+                        {(change.targetName ?? "?")[0]?.toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <span className="font-medium">{change.targetName ?? change.targetClerkId}</span>
+                        <span className="text-muted-foreground ml-1.5">by {change.actorName ?? change.actorClerkId}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <div className="flex items-center gap-1 text-muted-foreground text-xs">
+                        <OldIcon className="h-3 w-3" />
+                        <span className="capitalize">{change.oldRole}</span>
+                      </div>
+                      <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                      <div className="flex items-center gap-1 text-xs font-medium">
+                        <NewIcon className="h-3 w-3" />
+                        <span className="capitalize">{change.newRole}</span>
+                      </div>
+                      <span className="text-xs text-muted-foreground ml-2">
+                        {new Date(change.changedAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground text-sm border-2 border-dashed rounded-lg">
+              No role changes recorded yet.
             </div>
           )}
         </CardContent>

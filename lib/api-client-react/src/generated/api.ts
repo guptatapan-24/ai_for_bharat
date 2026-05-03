@@ -21,17 +21,21 @@ import type {
   ActivityItem,
   AuditEntry,
   Case,
+  CaseComment,
   CaseDetail,
   CreateCaseBody,
+  CreateCaseCommentBody,
   DashboardSummary,
   DeleteCase200,
   DepartmentWorkload,
   Directive,
   GetAuditLogParams,
   HealthStatus,
+  JudgmentText,
   ListCasesParams,
   ListDirectivesParams,
   ProcessingStatus,
+  RoleChangeEntry,
   TimelineEvent,
   UpdateActionItemBody,
   UpdateCaseBody,
@@ -1574,6 +1578,342 @@ export function useGetAuditLog<
   },
 ): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetAuditLogQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get extracted text from the uploaded judgment PDF
+ */
+export const getGetJudgmentTextUrl = (id: number) => {
+  return `/api/cases/${id}/judgment-text`;
+};
+
+export const getJudgmentText = async (
+  id: number,
+  options?: RequestInit,
+): Promise<JudgmentText> => {
+  return customFetch<JudgmentText>(getGetJudgmentTextUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetJudgmentTextQueryKey = (id: number) => {
+  return [`/api/cases/${id}/judgment-text`] as const;
+};
+
+export const getGetJudgmentTextQueryOptions = <
+  TData = Awaited<ReturnType<typeof getJudgmentText>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getJudgmentText>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetJudgmentTextQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getJudgmentText>>> = ({
+    signal,
+  }) => getJudgmentText(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getJudgmentText>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetJudgmentTextQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getJudgmentText>>
+>;
+export type GetJudgmentTextQueryError = ErrorType<void>;
+
+/**
+ * @summary Get extracted text from the uploaded judgment PDF
+ */
+
+export function useGetJudgmentText<
+  TData = Awaited<ReturnType<typeof getJudgmentText>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getJudgmentText>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetJudgmentTextQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List comments for a case
+ */
+export const getListCaseCommentsUrl = (id: number) => {
+  return `/api/cases/${id}/comments`;
+};
+
+export const listCaseComments = async (
+  id: number,
+  options?: RequestInit,
+): Promise<CaseComment[]> => {
+  return customFetch<CaseComment[]>(getListCaseCommentsUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListCaseCommentsQueryKey = (id: number) => {
+  return [`/api/cases/${id}/comments`] as const;
+};
+
+export const getListCaseCommentsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listCaseComments>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listCaseComments>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListCaseCommentsQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof listCaseComments>>
+  > = ({ signal }) => listCaseComments(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof listCaseComments>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListCaseCommentsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listCaseComments>>
+>;
+export type ListCaseCommentsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List comments for a case
+ */
+
+export function useListCaseComments<
+  TData = Awaited<ReturnType<typeof listCaseComments>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listCaseComments>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListCaseCommentsQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Add a comment to a case
+ */
+export const getCreateCaseCommentUrl = (id: number) => {
+  return `/api/cases/${id}/comments`;
+};
+
+export const createCaseComment = async (
+  id: number,
+  createCaseCommentBody: CreateCaseCommentBody,
+  options?: RequestInit,
+): Promise<CaseComment> => {
+  return customFetch<CaseComment>(getCreateCaseCommentUrl(id), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(createCaseCommentBody),
+  });
+};
+
+export const getCreateCaseCommentMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCaseComment>>,
+    TError,
+    { id: number; data: BodyType<CreateCaseCommentBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createCaseComment>>,
+  TError,
+  { id: number; data: BodyType<CreateCaseCommentBody> },
+  TContext
+> => {
+  const mutationKey = ["createCaseComment"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createCaseComment>>,
+    { id: number; data: BodyType<CreateCaseCommentBody> }
+  > = (props) => {
+    const { id, data } = props ?? {};
+
+    return createCaseComment(id, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateCaseCommentMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createCaseComment>>
+>;
+export type CreateCaseCommentMutationBody = BodyType<CreateCaseCommentBody>;
+export type CreateCaseCommentMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Add a comment to a case
+ */
+export const useCreateCaseComment = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createCaseComment>>,
+    TError,
+    { id: number; data: BodyType<CreateCaseCommentBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createCaseComment>>,
+  TError,
+  { id: number; data: BodyType<CreateCaseCommentBody> },
+  TContext
+> => {
+  return useMutation(getCreateCaseCommentMutationOptions(options));
+};
+
+/**
+ * @summary List role change history (admin only)
+ */
+export const getListRoleChangesUrl = () => {
+  return `/api/role-change-log`;
+};
+
+export const listRoleChanges = async (
+  options?: RequestInit,
+): Promise<RoleChangeEntry[]> => {
+  return customFetch<RoleChangeEntry[]>(getListRoleChangesUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListRoleChangesQueryKey = () => {
+  return [`/api/role-change-log`] as const;
+};
+
+export const getListRoleChangesQueryOptions = <
+  TData = Awaited<ReturnType<typeof listRoleChanges>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listRoleChanges>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListRoleChangesQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listRoleChanges>>> = ({
+    signal,
+  }) => listRoleChanges({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listRoleChanges>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListRoleChangesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listRoleChanges>>
+>;
+export type ListRoleChangesQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List role change history (admin only)
+ */
+
+export function useListRoleChanges<
+  TData = Awaited<ReturnType<typeof listRoleChanges>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listRoleChanges>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListRoleChangesQueryOptions(options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

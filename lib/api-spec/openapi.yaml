@@ -410,6 +410,20 @@ paths:
           schema:
             type: integer
             default: 50
+        - name: eventType
+          in: query
+          schema:
+            type: string
+        - name: dateFrom
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: dateTo
+          in: query
+          schema:
+            type: string
+            format: date
       responses:
         "200":
           description: Audit log entries
@@ -419,6 +433,86 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/AuditEntry"
+
+  /cases/{id}/judgment-text:
+    get:
+      operationId: getJudgmentText
+      tags: [cases]
+      summary: Get extracted text from the uploaded judgment PDF
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Judgment text
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JudgmentText"
+        "404":
+          description: No judgment uploaded yet
+
+  /cases/{id}/comments:
+    get:
+      operationId: listCaseComments
+      tags: [cases]
+      summary: List comments for a case
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of comments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CaseComment"
+    post:
+      operationId: createCaseComment
+      tags: [cases]
+      summary: Add a comment to a case
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCaseCommentBody"
+      responses:
+        "201":
+          description: Created comment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CaseComment"
+
+  /role-change-log:
+    get:
+      operationId: listRoleChanges
+      tags: [auth]
+      summary: List role change history (admin only)
+      responses:
+        "200":
+          description: Role change log
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RoleChangeEntry"
 
   /me:
     get:
@@ -1069,3 +1163,62 @@ components:
         role:
           $ref: "#/components/schemas/UserRole"
       required: [role]
+
+    JudgmentText:
+      type: object
+      properties:
+        rawTextPreview:
+          type: string
+          nullable: true
+        pageCount:
+          type: integer
+      required: [pageCount]
+
+    CaseComment:
+      type: object
+      properties:
+        id:
+          type: integer
+        caseId:
+          type: integer
+        authorName:
+          type: string
+        authorRole:
+          type: string
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+      required: [id, caseId, authorName, authorRole, content, createdAt]
+
+    CreateCaseCommentBody:
+      type: object
+      properties:
+        content:
+          type: string
+      required: [content]
+
+    RoleChangeEntry:
+      type: object
+      properties:
+        id:
+          type: integer
+        actorClerkId:
+          type: string
+        actorName:
+          type: string
+          nullable: true
+        targetClerkId:
+          type: string
+        targetName:
+          type: string
+          nullable: true
+        oldRole:
+          $ref: "#/components/schemas/UserRole"
+        newRole:
+          $ref: "#/components/schemas/UserRole"
+        changedAt:
+          type: string
+          format: date-time
+      required: [id, actorClerkId, targetClerkId, oldRole, newRole, changedAt]

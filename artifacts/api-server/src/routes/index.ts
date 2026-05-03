@@ -8,6 +8,7 @@ import dashboardRouter from "./dashboard";
 import auditRouter from "./audit";
 import uploadRouter from "./upload";
 import usersRouter from "./users";
+import commentsRouter from "./comments";
 
 const router: IRouter = Router();
 
@@ -21,5 +22,6 @@ router.use(actionPlanRouter);
 router.use(dashboardRouter);
 router.use(auditRouter);
 router.use(uploadRouter);
+router.use(commentsRouter);
 
 export default router;

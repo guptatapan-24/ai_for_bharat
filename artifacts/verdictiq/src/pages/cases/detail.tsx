@@ -9,6 +9,9 @@ import {
   useGetComplianceTimeline,
   useGetAuditLog,
   useDeleteCase,
+  useListCaseComments,
+  useCreateCaseComment,
+  getListCaseCommentsQueryKey,
 } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -26,8 +29,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, CheckCircle2, Clock, Cpu, FileText, Loader2, Upload, ShieldAlert, History, Calendar, AlertTriangle, ScanLine, FileCheck, Trash2, RefreshCw } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, Cpu, FileText, Loader2, Upload, ShieldAlert, History, Calendar, AlertTriangle, ScanLine, FileCheck, Trash2, RefreshCw, MessageSquare, Download, Filter } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 
 interface UploadResult {
@@ -71,8 +75,27 @@ export default function CaseDetail() {
     query: { enabled: !!caseId, queryKey: ["timeline", caseId] }
   });
 
-  const { data: auditLog, isLoading: isAuditLoading } = useGetAuditLog({ caseId, limit: 50 }, {
-    query: { enabled: !!caseId, queryKey: ["audit-log", caseId] }
+  const [auditEventType, setAuditEventType] = useState("");
+  const [auditDateFrom, setAuditDateFrom] = useState("");
+  const [auditDateTo, setAuditDateTo] = useState("");
+
+  const { data: auditLog, isLoading: isAuditLoading } = useGetAuditLog(
+    { caseId, limit: 100, ...(auditEventType ? { eventType: auditEventType } : {}), ...(auditDateFrom ? { dateFrom: auditDateFrom } : {}), ...(auditDateTo ? { dateTo: auditDateTo } : {}) },
+    { query: { enabled: !!caseId, queryKey: ["audit-log", caseId, auditEventType, auditDateFrom, auditDateTo] } }
+  );
+
+  const [commentText, setCommentText] = useState("");
+  const { data: comments, isLoading: isCommentsLoading } = useListCaseComments(caseId, {
+    query: { enabled: !!caseId, queryKey: getListCaseCommentsQueryKey(caseId) }
+  });
+  const { mutate: addComment, isPending: isAddingComment } = useCreateCaseComment({
+    mutation: {
+      onSuccess: () => {
+        setCommentText("");
+        queryClient.invalidateQueries({ queryKey: getListCaseCommentsQueryKey(caseId) });
+      },
+      onError: () => toast({ title: "Failed to post comment", variant: "destructive" }),
+    }
   });
 
   const handleUploadFile = useCallback(async (file: File) => {
@@ -320,6 +343,12 @@ export default function CaseDetail() {
                 <TabsTrigger value="audit-trail" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-2 font-medium">
                   Audit Trail
                 </TabsTrigger>
+                <TabsTrigger value="comments" className="data-[state=active]:bg-transparent data-[state=active]:shadow-none data-[state=active]:border-b-2 data-[state=active]:border-primary rounded-none px-0 py-2 font-medium">
+                  Comments
+                  {comments && comments.length > 0 && (
+                    <Badge variant="secondary" className="ml-2 rounded-full px-1.5 py-0.5 text-[10px]">{comments.length}</Badge>
+                  )}
+                </TabsTrigger>
               </TabsList>
             </div>
             
@@ -534,6 +563,35 @@ export default function CaseDetail() {
                 <div className="space-y-4"><Skeleton className="h-24 w-full" /><Skeleton className="h-24 w-full" /></div>
               ) : actionPlan && actionPlan.length > 0 ? (
                 <div className="space-y-4">
+                  <div className="flex justify-end">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const header = "Title,Description,Department,Priority,Status,Deadline";
+                        const rows = actionPlan.map(item =>
+                          [
+                            `"${(item.title ?? "").replace(/"/g, '""')}"`,
+                            `"${(item.description ?? "").replace(/"/g, '""')}"`,
+                            `"${(item.department ?? "").replace(/"/g, '""')}"`,
+                            item.priority ?? "",
+                            item.status ?? "",
+                            item.deadline ? new Date(item.deadline).toLocaleDateString() : "",
+                          ].join(",")
+                        );
+                        const csv = [header, ...rows].join("\n");
+                        const blob = new Blob([csv], { type: "text/csv" });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement("a");
+                        a.href = url;
+                        a.download = `action-plan-${caseData?.caseNumber ?? caseId}.csv`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                      }}
+                    >
+                      <Download className="w-4 h-4 mr-2" /> Export CSV
+                    </Button>
+                  </div>
                   {actionPlan.map(item => (
                     <div key={item.id} className="p-4 border rounded-md flex items-start justify-between gap-4">
                       <div>
@@ -590,7 +648,54 @@ export default function CaseDetail() {
               )}
             </TabsContent>
 
-            <TabsContent value="audit-trail" className="p-6">
+            <TabsContent value="audit-trail" className="p-6 space-y-4">
+              <div className="flex flex-wrap gap-3 items-end p-3 bg-muted/30 rounded-lg border">
+                <Filter className="w-4 h-4 text-muted-foreground self-center shrink-0" />
+                <div className="flex flex-col gap-1 min-w-[160px]">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Event Type</label>
+                  <select
+                    value={auditEventType}
+                    onChange={(e) => setAuditEventType(e.target.value)}
+                    className="text-sm border rounded-md px-2 py-1.5 bg-background h-9"
+                  >
+                    <option value="">All events</option>
+                    <option value="pdf_uploaded">PDF Uploaded</option>
+                    <option value="extraction_started">Extraction Started</option>
+                    <option value="extraction_complete">Extraction Complete</option>
+                    <option value="directive_verified">Directive Verified</option>
+                    <option value="directive_edited">Directive Edited</option>
+                    <option value="directive_rejected">Directive Rejected</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">From</label>
+                  <input
+                    type="date"
+                    value={auditDateFrom}
+                    onChange={(e) => setAuditDateFrom(e.target.value)}
+                    className="text-sm border rounded-md px-2 py-1.5 bg-background h-9"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">To</label>
+                  <input
+                    type="date"
+                    value={auditDateTo}
+                    onChange={(e) => setAuditDateTo(e.target.value)}
+                    className="text-sm border rounded-md px-2 py-1.5 bg-background h-9"
+                  />
+                </div>
+                {(auditEventType || auditDateFrom || auditDateTo) && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => { setAuditEventType(""); setAuditDateFrom(""); setAuditDateTo(""); }}
+                    className="text-xs self-end"
+                  >
+                    Clear filters
+                  </Button>
+                )}
+              </div>
               {isAuditLoading ? (
                 <div className="space-y-4"><Skeleton className="h-12 w-full" /><Skeleton className="h-12 w-full" /></div>
               ) : auditLog && auditLog.length > 0 ? (
@@ -618,7 +723,53 @@ export default function CaseDetail() {
                 </div>
               ) : (
                 <div className="text-center py-12 text-muted-foreground border-2 border-dashed rounded-lg bg-muted/20">
-                  No audit entries found.
+                  No audit entries found{auditEventType || auditDateFrom || auditDateTo ? " matching these filters" : ""}.
+                </div>
+              )}
+            </TabsContent>
+            <TabsContent value="comments" className="p-6 space-y-4">
+              <div className="space-y-3">
+                <Textarea
+                  placeholder="Add a comment or internal note about this case…"
+                  value={commentText}
+                  onChange={(e) => setCommentText(e.target.value)}
+                  className="resize-none min-h-[80px]"
+                />
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    disabled={!commentText.trim() || isAddingComment}
+                    onClick={() => addComment({ id: caseId, data: { content: commentText } })}
+                  >
+                    {isAddingComment ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MessageSquare className="w-4 h-4 mr-2" />}
+                    Post Comment
+                  </Button>
+                </div>
+              </div>
+              {isCommentsLoading ? (
+                <div className="space-y-3"><Skeleton className="h-16 w-full" /><Skeleton className="h-16 w-full" /></div>
+              ) : comments && comments.length > 0 ? (
+                <div className="space-y-4 border-t pt-4">
+                  {comments.map(comment => (
+                    <div key={comment.id} className="flex gap-3">
+                      <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center text-muted-foreground font-semibold text-xs flex-shrink-0 mt-1">
+                        {comment.authorName[0]?.toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-sm font-medium">{comment.authorName}</span>
+                          <Badge variant="outline" className="text-[10px] capitalize py-0">{comment.authorRole}</Badge>
+                          <span className="text-xs text-muted-foreground">{new Date(comment.createdAt).toLocaleString()}</span>
+                        </div>
+                        <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{comment.content}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12 text-muted-foreground border-2 border-dashed rounded-lg bg-muted/20">
+                  <MessageSquare className="w-8 h-8 mx-auto mb-3 opacity-40" />
+                  No comments yet. Add the first internal note.
                 </div>
               )}
             </TabsContent>

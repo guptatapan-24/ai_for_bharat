@@ -6,3 +6,5 @@ export * from "./audit_log";
 export * from "./conversations";
 export * from "./messages";
 export * from "./users";
+export * from "./case_comments";
+export * from "./role_change_log";

@@ -772,4 +772,19 @@ router.get("/cases/:id/compliance-timeline", async (req, res) => {
   return res.json(timeline);
 });
 
+router.get("/cases/:id/judgment-text", async (req, res) => {
+  const id = Number(req.params.id);
+  if (!id) return res.status(400).json({ error: "Invalid id" });
+
+  const judgment = await db
+    .select({ rawTextPreview: judgmentsTable.rawTextPreview, pageCount: judgmentsTable.pageCount })
+    .from(judgmentsTable)
+    .where(eq(judgmentsTable.caseId, id))
+    .then((r) => r[0]);
+
+  if (!judgment) return res.status(404).json({ error: "No judgment uploaded yet" });
+
+  return res.json(judgment);
+});
+
 export default router;

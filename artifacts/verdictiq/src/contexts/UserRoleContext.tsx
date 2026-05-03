@@ -1,5 +1,5 @@
 import { createContext, useContext } from "react";
-import { useGetMe } from "@workspace/api-client-react";
+import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
 
 export type UserRole = "admin" | "reviewer" | "viewer";
 
@@ -29,7 +29,7 @@ const UserRoleContext = createContext<UserRoleContextValue>({
 
 export function UserRoleProvider({ children }: { children: React.ReactNode }) {
   const { data, isSuccess } = useGetMe({
-    query: { retry: false, staleTime: 5 * 60 * 1000 },
+    query: { queryKey: getGetMeQueryKey(), retry: false, staleTime: 5 * 60 * 1000 },
   });
 
   const role = (data?.role as UserRole) ?? null;

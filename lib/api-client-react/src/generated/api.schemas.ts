@@ -510,6 +510,35 @@ export interface UpdateUserRoleBody {
   role: UserRole;
 }
 
+export interface JudgmentText {
+  rawTextPreview?: string | null;
+  pageCount: number;
+}
+
+export interface CaseComment {
+  id: number;
+  caseId: number;
+  authorName: string;
+  authorRole: string;
+  content: string;
+  createdAt: string;
+}
+
+export interface CreateCaseCommentBody {
+  content: string;
+}
+
+export interface RoleChangeEntry {
+  id: number;
+  actorClerkId: string;
+  actorName?: string | null;
+  targetClerkId: string;
+  targetName?: string | null;
+  oldRole: UserRole;
+  newRole: UserRole;
+  changedAt: string;
+}
+
 export type ListCasesParams = {
   status?: ListCasesStatus;
   court?: string;
@@ -551,4 +580,7 @@ export type GetAuditLogParams = {
   caseId?: number;
   reviewer?: string;
   limit?: number;
+  eventType?: string;
+  dateFrom?: string;
+  dateTo?: string;
 };
