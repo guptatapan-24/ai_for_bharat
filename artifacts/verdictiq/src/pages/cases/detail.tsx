@@ -33,6 +33,7 @@ import { ArrowLeft, CheckCircle2, Clock, Cpu, FileText, Loader2, Upload, ShieldA
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { getDepartmentStyle } from "@/lib/departments";
 
 interface UploadResult {
   pageCount: number;
@@ -544,7 +545,7 @@ export default function CaseDetail() {
                               </div>
                               <div>
                                 <span className="text-muted-foreground block text-xs uppercase font-semibold tracking-wider">Department</span>
-                                <span className="font-medium">{directive.responsibleDepartment || "Unassigned"}</span>
+                                <DepartmentBadge name={directive.responsibleDepartment} />
                               </div>
                             </div>
                           </CardContent>
@@ -597,7 +598,7 @@ export default function CaseDetail() {
                       <div>
                         <div className="flex items-center gap-2 mb-1">
                           <Badge variant={item.priority === 'critical' ? 'destructive' : 'default'} className="uppercase text-[10px]">{item.priority}</Badge>
-                          <span className="text-sm font-medium">{item.department}</span>
+                          <DepartmentBadge name={item.department} />
                         </div>
                         <h4 className="font-medium">{item.title}</h4>
                         <p className="text-sm text-muted-foreground mt-1">{item.description}</p>
@@ -860,5 +861,15 @@ export default function CaseDetail() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+  );
+}
+
+function DepartmentBadge({ name }: { name: string | null | undefined }) {
+  const style = getDepartmentStyle(name);
+  return (
+    <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border ${style.bg} ${style.text} ${style.border}`}>
+      <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${style.dot}`} />
+      {name || "Unassigned"}
+    </span>
   );
 }

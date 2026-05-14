@@ -1,4 +1,5 @@
 import { useGetDashboardSummary, useGetUrgentItems, useGetDepartmentWorkload, useGetRecentActivity } from "@workspace/api-client-react";
+import { getDepartmentStyle } from "@/lib/departments";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { AlertTriangle, CheckCircle2, Clock, FileText, Activity } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -131,14 +132,22 @@ export default function Dashboard() {
                       </tr>
                     </thead>
                     <tbody className="divide-y">
-                      {workload.map(dept => (
-                        <tr key={dept.department}>
-                          <td className="px-4 py-3 font-medium">{dept.department}</td>
-                          <td className="px-4 py-3 text-right">{dept.totalItems}</td>
-                          <td className="px-4 py-3 text-right text-amber-600 font-medium">{dept.pendingItems}</td>
-                          <td className="px-4 py-3 text-right text-emerald-600">{dept.completedItems}</td>
-                        </tr>
-                      ))}
+                      {workload.map(dept => {
+                        const style = getDepartmentStyle(dept.department);
+                        return (
+                          <tr key={dept.department}>
+                            <td className="px-4 py-3">
+                              <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium border ${style.bg} ${style.text} ${style.border}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${style.dot}`} />
+                                {dept.department}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right font-medium">{dept.totalItems}</td>
+                            <td className="px-4 py-3 text-right text-amber-600 font-medium">{dept.pendingItems}</td>
+                            <td className="px-4 py-3 text-right text-emerald-600">{dept.completedItems}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>

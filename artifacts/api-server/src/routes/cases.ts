@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { requireRole } from "../middlewares/auth";
-import { db } from "@workspace/db";
+import { db, DEPARTMENT_NAMES } from "@workspace/db";
 import {
   casesTable,
   judgmentsTable,
@@ -206,11 +206,14 @@ For each directive found, return:
   "deadline": "<YYYY-MM-DD>" | null,
   "deadlineInferred": true | false,
   "deadlineSource": "<how determined>" | null,
-  "responsibleDepartment": "<specific Indian govt department/authority>",
+  "responsibleDepartment": "<MUST be exactly one name from the CANONICAL DEPARTMENT LIST below>",
   "actionRequired": "<one sentence imperative>",
   "isNovel": true | false,
   "confidenceScore": 0.0-1.0
 }
+
+CANONICAL DEPARTMENT LIST — choose the closest match. Use "Other / Not Specified" only if no other department fits:
+${DEPARTMENT_NAMES.join(" | ")}
 
 Return a JSON object with key "directives" containing the array — e.g. {"directives": [...]}. May be empty.`;
 
@@ -261,6 +264,9 @@ Extract 5–9 plausible directives a court would typically issue in a case of th
 
 For each directive return:
 { "type", "classification", "sourceText", "pageNumber", "paragraphRef", "deadline", "deadlineInferred", "deadlineSource", "responsibleDepartment", "actionRequired", "isNovel", "confidenceScore" }
+
+For "responsibleDepartment" choose EXACTLY ONE from this canonical list (use "Other / Not Specified" if none fits):
+${DEPARTMENT_NAMES.join(" | ")}
 
 Return a JSON object: {"directives": [...]}.`;
 

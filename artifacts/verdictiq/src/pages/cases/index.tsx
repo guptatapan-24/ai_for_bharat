@@ -22,10 +22,12 @@ import { FileText, Search, Filter, AlertCircle, Clock, Trash2 } from "lucide-rea
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/hooks/use-toast";
 import type { ListCasesStatus } from "@workspace/api-client-react";
+import { DEPARTMENT_LIST } from "@/lib/departments";
 
 export default function CaseList() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<ListCasesStatus | "all">("all");
+  const [department, setDepartment] = useState<string | "all">("all");
   const [deletingCase, setDeletingCase] = useState<{ id: number; caseNumber: string } | null>(null);
 
   const queryClient = useQueryClient();
@@ -35,6 +37,7 @@ export default function CaseList() {
   const { data: cases, isLoading } = useListCases({
     search: search || undefined,
     status: status === "all" ? undefined : status,
+    department: department === "all" ? undefined : department,
   });
 
   const { mutate: deleteCase, isPending: isDeleting } = useDeleteCase({
@@ -89,6 +92,19 @@ export default function CaseList() {
               <SelectItem value="under_review">Under Review</SelectItem>
               <SelectItem value="verified">Verified</SelectItem>
               <SelectItem value="completed">Completed</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="w-full sm:w-64">
+          <Select value={department} onValueChange={setDepartment}>
+            <SelectTrigger className="bg-card">
+              <SelectValue placeholder="All Departments" />
+            </SelectTrigger>
+            <SelectContent className="max-h-72">
+              <SelectItem value="all">All Departments</SelectItem>
+              {DEPARTMENT_LIST.map((d) => (
+                <SelectItem key={d.name} value={d.name}>{d.name}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
