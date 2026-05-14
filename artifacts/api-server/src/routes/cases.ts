@@ -268,7 +268,7 @@ function deduplicateDirectives(directives: ExtractedDirective[]): ExtractedDirec
       if (smaller < 5) return false; // too short to compare meaningfully
       let overlap = 0;
       for (const w of wordsD) if (wordsU.has(w)) overlap++;
-      return overlap / smaller > 0.85;
+      return overlap / smaller > 0.92;
     });
     if (!isDup) unique.push(d);
   }
@@ -365,7 +365,8 @@ Extract all directives from the above excerpt as JSON.`;
 
   const response = await openai.chat.completions.create({
     model: MODEL,
-    max_completion_tokens: 8192,
+    temperature: 0,
+    max_completion_tokens: 16384,
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },

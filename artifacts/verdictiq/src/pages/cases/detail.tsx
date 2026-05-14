@@ -392,7 +392,7 @@ export default function CaseDetail() {
                           <>
                             <Upload className="w-10 h-10 text-muted-foreground mx-auto mb-4 opacity-60" />
                             <p className="font-semibold text-foreground">Drop judgment PDF here</p>
-                            <p className="text-sm text-muted-foreground mt-1.5">or click to browse — digital and scanned PDFs accepted, up to 50 MB</p>
+                            <p className="text-sm text-muted-foreground mt-1.5">or click to browse — digital and scanned PDFs accepted, up to 200 MB</p>
                           </>
                         )}
                       </div>

@@ -17,7 +17,7 @@ const router = Router();
 const storage = multer.memoryStorage();
 const upload = multer({
   storage,
-  limits: { fileSize: 50 * 1024 * 1024 },
+  limits: { fileSize: 200 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (file.mimetype === "application/pdf") {
       cb(null, true);
@@ -50,15 +50,22 @@ router.post("/cases/:id/upload", upload.single("pdf"), async (req, res) => {
   let ocrConfidence: number | null = null;
   let lowConfidencePages: number[] = [];
 
-  try {
-    const pdfData = await pdfParse(pdfBuffer, { max: 0 });
+  // Parse PDF with a 25-second timeout so large files don't stall the HTTP response.
+  // If the timeout fires, we return the upload success immediately and finish extraction
+  // in the background — the /process route will pick up the text once it's ready.
+  const PDF_PARSE_TIMEOUT_MS = 25_000;
+
+  const parsePdfWithTimeout = (): Promise<{ numpages: number; text: string } | null> =>
+    Promise.race([
+      pdfParse(pdfBuffer, { max: 0 }),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), PDF_PARSE_TIMEOUT_MS)),
+    ]).catch(() => null);
+
+  const finalizeParsedData = (pdfData: { numpages: number; text: string }) => {
     extractedText = pdfData.text ?? "";
     pageCount = pdfData.numpages ?? 0;
-
-    const textDensity =
-      extractedText.replace(/\s+/g, "").length / Math.max(pageCount, 1);
+    const textDensity = extractedText.replace(/\s+/g, "").length / Math.max(pageCount, 1);
     isScanned = textDensity < 50;
-
     if (!isScanned) {
       ocrConfidence = Math.min(0.99, 0.88 + Math.random() * 0.11);
     } else {
@@ -67,6 +74,20 @@ router.post("/cases/:id/upload", upload.single("pdf"), async (req, res) => {
         { length: Math.ceil(pageCount * 0.3) },
         () => Math.floor(Math.random() * pageCount) + 1
       );
+    }
+  };
+
+  let pdfData: { numpages: number; text: string } | null = null;
+  try {
+    pdfData = await parsePdfWithTimeout();
+    if (pdfData) {
+      finalizeParsedData(pdfData);
+    } else {
+      // Timed out — mark as pending; background task will update DB when done
+      req.log.warn({ caseId }, "pdf-parse timed out — deferring text extraction to background");
+      parseError = "PDF text extraction is still in progress — please wait a moment then start AI extraction.";
+      isScanned = false;
+      pageCount = 0;
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
@@ -122,7 +143,7 @@ router.post("/cases/:id/upload", upload.single("pdf"), async (req, res) => {
     description: `PDF uploaded: ${pageLabel}, ${typeLabel}, ${extractedText.length.toLocaleString()} characters extracted`,
   });
 
-  return res.json({
+  res.json({
     success: true,
     caseId,
     pdfHash,
@@ -137,6 +158,32 @@ router.post("/cases/:id/upload", upload.single("pdf"), async (req, res) => {
     // and the process route reads it directly from the DB
     textForExtraction: null,
   });
+
+  // If pdf-parse timed out above, finish extraction in background now that the HTTP
+  // response has already been sent. The /process route reads rawTextPreview from DB,
+  // so by the time the user triggers extraction this will be ready.
+  if (!pdfData && pdfBuffer.length > 0) {
+    pdfParse(pdfBuffer, { max: 0 })
+      .then(async (bgData) => {
+        const bgText = bgData.text ?? "";
+        const bgPages = bgData.numpages ?? 0;
+        const bgDensity = bgText.replace(/\s+/g, "").length / Math.max(bgPages, 1);
+        const bgScanned = bgDensity < 50;
+        const bgConf = bgScanned ? 0.45 + Math.random() * 0.3 : Math.min(0.99, 0.88 + Math.random() * 0.11);
+        await db
+          .update(judgmentsTable)
+          .set({
+            rawTextPreview: bgText || null,
+            pageCount: bgPages,
+            isScanned: bgScanned,
+            overallOcrConfidence: bgConf,
+          })
+          .where(eq(judgmentsTable.caseId, caseId));
+      })
+      .catch((err) => {
+        console.error(`[Upload] Background pdf-parse failed for case ${caseId}:`, err);
+      });
+  }
 });
 
 export default router;
