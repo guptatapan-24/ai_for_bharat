@@ -1,7 +1,7 @@
 import { createContext, useContext } from "react";
 import { useGetMe, getGetMeQueryKey } from "@workspace/api-client-react";
 
-export type UserRole = "admin" | "reviewer" | "viewer";
+export type UserRole = "admin" | "department_officer" | "viewer";
 
 interface UserRoleContextValue {
   role: UserRole | null;
@@ -39,7 +39,7 @@ export function UserRoleProvider({ children }: { children: React.ReactNode }) {
       value={{
         role,
         isAdmin: role === "admin",
-        isReviewer: role === "reviewer" || role === "admin",
+        isReviewer: role === "department_officer" || role === "admin",
         isViewer: role === "viewer",
         isLoaded: isSuccess,
         userId: data?.id ?? null,

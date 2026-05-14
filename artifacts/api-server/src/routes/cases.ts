@@ -510,7 +510,7 @@ router.get("/cases/:id", async (req, res) => {
   });
 });
 
-router.patch("/cases/:id", requireRole(["admin", "reviewer"]), async (req, res) => {
+router.patch("/cases/:id", requireRole(["admin", "department_officer"]), async (req, res) => {
   const paramParsed = UpdateCaseParams.safeParse({ id: Number(req.params.id) });
   if (!paramParsed.success) return res.status(400).json({ error: "Invalid id" });
 

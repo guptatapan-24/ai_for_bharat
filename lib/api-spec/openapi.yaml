@@ -1136,7 +1136,7 @@ components:
 
     UserRole:
       type: string
-      enum: [admin, reviewer, viewer]
+      enum: [admin, department_officer, viewer]
 
     User:
       type: object

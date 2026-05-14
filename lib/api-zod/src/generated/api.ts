@@ -679,8 +679,8 @@ export const ListRoleChangesResponseItem = zod.object({
   actorName: zod.string().nullish(),
   targetClerkId: zod.string(),
   targetName: zod.string().nullish(),
-  oldRole: zod.enum(["admin", "reviewer", "viewer"]),
-  newRole: zod.enum(["admin", "reviewer", "viewer"]),
+  oldRole: zod.enum(["admin", "department_officer", "viewer"]),
+  newRole: zod.enum(["admin", "department_officer", "viewer"]),
   changedAt: zod.coerce.date(),
 });
 export const ListRoleChangesResponse = zod.array(ListRoleChangesResponseItem);
@@ -693,7 +693,7 @@ export const GetMeResponse = zod.object({
   clerkId: zod.string(),
   email: zod.string(),
   fullName: zod.string().nullish(),
-  role: zod.enum(["admin", "reviewer", "viewer"]),
+  role: zod.enum(["admin", "department_officer", "viewer"]),
   createdAt: zod.coerce.date(),
 });
 
@@ -705,7 +705,7 @@ export const ListUsersResponseItem = zod.object({
   clerkId: zod.string(),
   email: zod.string(),
   fullName: zod.string().nullish(),
-  role: zod.enum(["admin", "reviewer", "viewer"]),
+  role: zod.enum(["admin", "department_officer", "viewer"]),
   createdAt: zod.coerce.date(),
 });
 export const ListUsersResponse = zod.array(ListUsersResponseItem);
@@ -718,7 +718,7 @@ export const UpdateUserRoleParams = zod.object({
 });
 
 export const UpdateUserRoleBody = zod.object({
-  role: zod.enum(["admin", "reviewer", "viewer"]),
+  role: zod.enum(["admin", "department_officer", "viewer"]),
 });
 
 export const UpdateUserRoleResponse = zod.object({
@@ -726,6 +726,6 @@ export const UpdateUserRoleResponse = zod.object({
   clerkId: zod.string(),
   email: zod.string(),
   fullName: zod.string().nullish(),
-  role: zod.enum(["admin", "reviewer", "viewer"]),
+  role: zod.enum(["admin", "department_officer", "viewer"]),
   createdAt: zod.coerce.date(),
 });

@@ -12,7 +12,7 @@ import type { UserRole } from "@/contexts/UserRoleContext";
 
 const ROLE_META: Record<UserRole, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
   admin: { label: "Admin", icon: Shield },
-  reviewer: { label: "Reviewer", icon: Edit3 },
+  department_officer: { label: "Department Officer", icon: Edit3 },
   viewer: { label: "Viewer", icon: Eye },
 };
 
@@ -55,7 +55,7 @@ export default function AdminUsers() {
       </div>
 
       <div className="grid grid-cols-3 gap-4">
-        {(["admin", "reviewer", "viewer"] as UserRole[]).map((role) => {
+        {(["admin", "department_officer", "viewer"] as UserRole[]).map((role) => {
           const meta = ROLE_META[role];
           const roleCount = users?.filter((u) => u.role === role).length ?? 0;
           return (
@@ -76,7 +76,7 @@ export default function AdminUsers() {
         <CardHeader>
           <CardTitle>Team Members</CardTitle>
           <CardDescription>
-            Admins can create and delete cases. Reviewers can verify directives. Viewers have read-only access.
+            Admins can create and delete cases. Department Officers can verify directives. Viewers have read-only access.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -121,7 +121,7 @@ export default function AdminUsers() {
                         </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
-                        {(["admin", "reviewer", "viewer"] as UserRole[]).map((r) => {
+                        {(["admin", "department_officer", "viewer"] as UserRole[]).map((r) => {
                           const m = ROLE_META[r];
                           return (
                             <SelectItem key={r} value={r}>
@@ -174,12 +174,12 @@ export default function AdminUsers() {
                     <div className="flex items-center gap-2 flex-shrink-0">
                       <div className="flex items-center gap-1 text-muted-foreground text-xs">
                         <OldIcon className="h-3 w-3" />
-                        <span className="capitalize">{change.oldRole}</span>
+                        <span>{ROLE_META[change.oldRole as UserRole]?.label ?? change.oldRole}</span>
                       </div>
                       <ArrowRight className="h-3 w-3 text-muted-foreground" />
                       <div className="flex items-center gap-1 text-xs font-medium">
                         <NewIcon className="h-3 w-3" />
-                        <span className="capitalize">{change.newRole}</span>
+                        <span>{ROLE_META[change.newRole as UserRole]?.label ?? change.newRole}</span>
                       </div>
                       <span className="text-xs text-muted-foreground ml-2">
                         {new Date(change.changedAt).toLocaleDateString()}

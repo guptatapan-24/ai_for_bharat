@@ -13,7 +13,7 @@ import { useUserRole } from "@/contexts/UserRoleContext";
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "Admin",
-  reviewer: "Reviewer",
+  department_officer: "Department Officer",
   viewer: "Viewer",
 };
 

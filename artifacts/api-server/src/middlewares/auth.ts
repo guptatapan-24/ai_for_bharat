@@ -4,7 +4,7 @@ import { db, usersTable } from "@workspace/db";
 import { eq, count } from "drizzle-orm";
 import { clerkClient } from "@clerk/express";
 
-export type UserRole = "admin" | "reviewer" | "viewer";
+export type UserRole = "admin" | "department_officer" | "viewer";
 
 declare global {
   namespace Express {

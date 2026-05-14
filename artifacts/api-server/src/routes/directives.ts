@@ -62,7 +62,7 @@ router.get("/cases/:id/directives/:directiveId", async (req, res) => {
   return res.json(directive);
 });
 
-router.post("/cases/:id/directives/:directiveId/verify", requireRole(["admin", "reviewer"]), async (req, res) => {
+router.post("/cases/:id/directives/:directiveId/verify", requireRole(["admin", "department_officer"]), async (req, res) => {
   const paramParsed = VerifyDirectiveParams.safeParse({
     id: Number(req.params.id),
     directiveId: Number(req.params.directiveId),
