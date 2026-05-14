@@ -30,9 +30,9 @@ const MODEL = "gpt-5.4";
 
 // How many chars roughly correspond to one page in a dense Indian judgment
 const CHARS_PER_PAGE_ESTIMATE = 2000;
-const CHUNK_SIZE = 6000;
-const CHUNK_OVERLAP = 600;
-const MAX_CHUNKS = 50;
+const CHUNK_SIZE = 9000;       // larger window = more context per AI call
+const CHUNK_OVERLAP = 900;     // 10% overlap to avoid splitting mid-sentence
+const MAX_CHUNKS = 120;        // enough to fully cover a 200-page judgment
 const CHUNK_BATCH_SIZE = 6;
 
 interface ExtractedDirective {
@@ -89,14 +89,16 @@ function sanitizeClassification(val: string): "mandatory" | "advisory" | "unknow
   return "unknown";
 }
 
-/** Split full judgment text into overlapping chunks.
- *  Strategy for Indian court judgments:
- *  - Last 40% (operative part): 65% of chunk budget, evenly spaced
- *  - First 60% (facts + analysis): 35% of chunk budget, evenly spaced
+/** Split full judgment text into overlapping chunks with guaranteed full coverage.
  *
- *  This guarantees both sections get meaningful AI coverage regardless of
- *  document length — avoiding the failure mode where a very long tail fills the
- *  entire budget and the first 60% of the judgment gets no coverage.
+ *  Strategy for Indian court judgments:
+ *  - Last 45% (operative part/orders): 60% of chunk budget — processed FIRST
+ *  - First 55% (facts + analysis):     40% of chunk budget — processed second
+ *
+ *  Key fix: chunk start positions are evenly distributed so that every character
+ *  of each section is covered by at least one chunk window. The step is computed
+ *  as (sectionLen - CHUNK_SIZE) / (budget - 1), ensuring the last chunk always
+ *  ends at the section boundary with no gaps.
  */
 function buildChunks(fullText: string, pageCount: number): Chunk[] {
   const textLen = fullText.length;
@@ -105,54 +107,81 @@ function buildChunks(fullText: string, pageCount: number): Chunk[] {
     return [{ text: fullText, estStartPage: 1, estEndPage: Math.max(pageCount, 1), index: 0 }];
   }
 
-  const tailBudget = Math.floor(MAX_CHUNKS * 0.65); // ~32 chunks for last 40%
-  const headBudget = MAX_CHUNKS - tailBudget;        // ~18 chunks for first 60%
-
-  const tailCutoff = Math.floor(textLen * 0.60);
-  const tailText = fullText.slice(tailCutoff);
-  const headText = fullText.slice(0, tailCutoff);
-
   const makeChunk = (slice: string, charOffset: number, idx: number): Chunk | null => {
-    if (slice.trim().length < 300) return null;
+    if (slice.trim().length < 200) return null;
     const startRatio = charOffset / textLen;
-    const endRatio = Math.min(1, (charOffset + CHUNK_SIZE) / textLen);
+    const endRatio = Math.min(1, (charOffset + slice.length) / textLen);
     return {
       text: slice,
       estStartPage: Math.max(1, Math.round(startRatio * pageCount)),
-      estEndPage: Math.min(pageCount, Math.round(endRatio * pageCount) + 1),
+      estEndPage: Math.max(1, Math.min(pageCount, Math.round(endRatio * pageCount) + 1)),
       index: idx,
     };
   };
 
-  const chunks: Chunk[] = [];
+  /** Build evenly-distributed chunks that guarantee full coverage of a section.
+   *  The step between chunk starts = (sectionLen - CHUNK_SIZE) / (n - 1)
+   *  so chunk[0] starts at 0, chunk[n-1] starts at sectionLen-CHUNK_SIZE. */
+  const makeCoveredChunks = (
+    section: string,
+    sectionCharOffset: number,
+    budget: number
+  ): Chunk[] => {
+    const sLen = section.length;
+    const result: Chunk[] = [];
 
-  // Tail: evenly-sampled positions within last 40%
-  const tailStep = Math.max(CHUNK_SIZE - CHUNK_OVERLAP, Math.ceil(tailText.length / tailBudget));
-  for (let i = 0; i < tailText.length && chunks.length < tailBudget; i += tailStep) {
-    const c = makeChunk(tailText.slice(i, i + CHUNK_SIZE), tailCutoff + i, chunks.length);
-    if (c) chunks.push(c);
-  }
+    if (sLen <= CHUNK_SIZE) {
+      const c = makeChunk(section, sectionCharOffset, 0);
+      if (c) result.push(c);
+      return result;
+    }
 
-  // Head: evenly-sampled positions within first 60%
-  const headStep = Math.max(CHUNK_SIZE - CHUNK_OVERLAP, Math.ceil(headText.length / headBudget));
-  const headChunks: Chunk[] = [];
-  for (let i = 0; i < headText.length && headChunks.length < headBudget; i += headStep) {
-    const c = makeChunk(headText.slice(i, i + CHUNK_SIZE), i, headChunks.length);
-    if (c) headChunks.push(c);
-  }
+    // How many chunks do we need for full coverage with no gaps?
+    const neededForFullCoverage = Math.ceil((sLen - CHUNK_SIZE) / (CHUNK_SIZE - CHUNK_OVERLAP)) + 1;
+    const n = Math.min(budget, neededForFullCoverage);
 
-  // Combine: tail first (highest directive density), then head
-  const all = [...chunks, ...headChunks].slice(0, MAX_CHUNKS);
-  // Re-index
+    // Space starts evenly: step = (lastStart) / (n-1)
+    const lastStart = sLen - CHUNK_SIZE;
+    const step = n <= 1 ? lastStart : Math.round(lastStart / (n - 1));
+
+    for (let i = 0; i < n; i++) {
+      const start = Math.min(i * step, lastStart);
+      const slice = section.slice(start, start + CHUNK_SIZE);
+      const c = makeChunk(slice, sectionCharOffset + start, result.length);
+      if (c) result.push(c);
+    }
+    return result;
+  };
+
+  // Split: last 45% = operative orders, first 55% = facts/analysis
+  const tailCutoff = Math.floor(textLen * 0.55);
+  const headText = fullText.slice(0, tailCutoff);
+  const tailText = fullText.slice(tailCutoff);
+
+  // Budget split: 60% for operative tail (most directives), 40% for facts head
+  const tailBudget = Math.ceil(MAX_CHUNKS * 0.60);
+  const headBudget = MAX_CHUNKS - tailBudget;
+
+  const tailChunks = makeCoveredChunks(tailText, tailCutoff, tailBudget);
+  const headChunks = makeCoveredChunks(headText, 0, headBudget);
+
+  // Tail first (highest directive density), then head — re-index throughout
+  const all = [...tailChunks, ...headChunks].slice(0, MAX_CHUNKS);
   all.forEach((c, i) => { c.index = i; });
   return all;
 }
 
-/** Deduplicate directives — two are considered the same if their sourceTexts
- *  share >70% of significant words (length > 3). */
+/** Deduplicate directives — two are considered duplicates only if their
+ *  sourceTexts share >85% of significant words (length > 4).
+ *
+ *  Using a higher threshold (was 70%) avoids incorrectly merging distinct
+ *  directives that share common legal phrasing like "the court ordered" or
+ *  "the respondent shall comply". Different departments / actions with similar
+ *  boilerplate should be kept as separate directives.
+ */
 function deduplicateDirectives(directives: ExtractedDirective[]): ExtractedDirective[] {
   const sig = (s: string) =>
-    new Set(s.toLowerCase().split(/\W+/).filter((w) => w.length > 3));
+    new Set(s.toLowerCase().split(/\W+/).filter((w) => w.length > 4));
 
   const unique: ExtractedDirective[] = [];
   for (const d of directives) {
@@ -160,10 +189,10 @@ function deduplicateDirectives(directives: ExtractedDirective[]): ExtractedDirec
     const isDup = unique.some((u) => {
       const wordsU = sig(u.sourceText);
       const smaller = Math.min(wordsD.size, wordsU.size);
-      if (smaller === 0) return false;
+      if (smaller < 5) return false; // too short to compare meaningfully
       let overlap = 0;
       for (const w of wordsD) if (wordsU.has(w)) overlap++;
-      return overlap / smaller > 0.7;
+      return overlap / smaller > 0.85;
     });
     if (!isDup) unique.push(d);
   }
@@ -192,46 +221,62 @@ async function extractChunk(
   caseContext: string,
   dateOfOrder: string | null
 ): Promise<ExtractedDirective[]> {
-  const systemPrompt = `You are VerdictIQ, a specialized legal AI for Indian government compliance. You are given a SINGLE EXCERPT from a larger court judgment. Your task is to extract every court-ordered directive, compliance obligation, stay order, deadline, and direction found in this excerpt.
+  const systemPrompt = `You are VerdictIQ, a specialized legal AI for Indian government compliance. You are given a SINGLE EXCERPT from a larger Indian High Court or Supreme Court judgment.
 
-IMPORTANT RULES:
-- Only extract actual court orders and directions — not arguments of counsel, factual recitals, or pure observations.
-- Look for operative language: "is directed to", "shall", "is ordered to", "we direct", "we order", "ORDERED THAT", "In the result", "Accordingly", "is required to", "must comply".
-- If this excerpt contains NO directives, return {"directives": []}.
-- Do NOT invent directives not present in this excerpt.
-- Source text must be verbatim from the excerpt.
-- Page numbers: use the provided start/end page range as context.
+Your task: extract EVERY court-ordered directive, compliance obligation, stay order, deadline, and direction present in this excerpt. Be THOROUGH — err on the side of including more directives rather than fewer.
 
-For each directive found, return:
+WHAT TO EXTRACT:
+- Explicit orders: "is directed to", "shall", "is ordered to", "we direct", "we order", "ORDERED THAT", "In the result", "Accordingly", "is required to", "must comply", "is hereby directed"
+- Stay orders, interim relief, injunctions
+- Compliance deadlines and timelines ("within X weeks/months")
+- Reporting obligations ("file a compliance report", "submit an affidavit")
+- Directions to any government department, authority, or officer
+- Directions to investigate, take action, or provide relief
+- Contempt warnings and enforcement directions
+- Advisory observations the court expects departments to act upon
+
+WHAT NOT TO EXTRACT:
+- Pure factual recitals or party arguments
+- Background facts not leading to any order
+- General observations without actionable content
+
+RULES:
+- Extract EVERY distinct directive — do not merge or summarize multiple orders into one
+- sourceText must be verbatim from the excerpt (exact quote, up to ~300 chars)
+- If this excerpt contains NO directives, return {"directives": []}
+- Do NOT invent directives not present in the excerpt
+- Page numbers: use the provided start/end range
+
+For EACH directive return exactly this JSON shape:
 {
   "type": "compliance_order" | "stay" | "direction" | "limitation_period" | "appeal" | "observation" | "other",
   "classification": "mandatory" | "advisory",
-  "sourceText": "<verbatim text from excerpt>",
-  "pageNumber": <integer within provided range>,
-  "paragraphRef": "<e.g. Para 12>" | null,
+  "sourceText": "<verbatim excerpt, ≤300 chars>",
+  "pageNumber": <integer in provided range>,
+  "paragraphRef": "<e.g. Para 12, ¶5, Order I>" | null,
   "deadline": "<YYYY-MM-DD>" | null,
   "deadlineInferred": true | false,
-  "deadlineSource": "<how determined>" | null,
-  "responsibleDepartment": "<MUST be exactly one name from the CANONICAL DEPARTMENT LIST below>",
-  "actionRequired": "<one sentence imperative>",
+  "deadlineSource": "<e.g. '3 months from date of order'>" | null,
+  "responsibleDepartment": "<EXACTLY one name from the CANONICAL DEPARTMENT LIST>",
+  "actionRequired": "<one clear imperative sentence describing what must be done>",
   "isNovel": true | false,
   "confidenceScore": 0.0-1.0
 }
 
-CANONICAL DEPARTMENT LIST — choose the closest match. Use "Other / Not Specified" only if no other department fits:
+CANONICAL DEPARTMENT LIST — choose the closest match; use "Other / Not Specified" only if nothing fits:
 ${DEPARTMENT_NAMES.join(" | ")}
 
-Return a JSON object with key "directives" containing the array — e.g. {"directives": [...]}. May be empty.`;
+Return a JSON object: {"directives": [...]}`;
 
   const userPrompt = `CASE CONTEXT:
 ${caseContext}
 
-DOCUMENT EXCERPT (pages ${chunk.estStartPage}–${chunk.estEndPage}):
+EXCERPT (estimated pages ${chunk.estStartPage}–${chunk.estEndPage}, chunk ${chunk.index + 1}):
 ${chunk.text}`;
 
   const response = await openai.chat.completions.create({
     model: MODEL,
-    max_completion_tokens: 4096,
+    max_completion_tokens: 8192,
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
