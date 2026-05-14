@@ -8,31 +8,64 @@ export interface EmailPayload {
   relatedCaseId?: number;
 }
 
-function getTransporter() {
-  if (!process.env.SMTP_HOST) return null;
-  return nodemailer.createTransport({
+/** Send via Resend REST API — returns true on success */
+async function sendViaResend(payload: EmailPayload): Promise<boolean> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return false;
+
+  const from = process.env.EMAIL_FROM ?? "VerdictIQ <noreply@verdictiq.gov.in>";
+  const res = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from,
+      to: [payload.to],
+      subject: payload.subject,
+      html: payload.html,
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Resend API error ${res.status}: ${body}`);
+  }
+  return true;
+}
+
+/** Send via nodemailer SMTP — returns true on success */
+async function sendViaSmtp(payload: EmailPayload): Promise<boolean> {
+  if (!process.env.SMTP_HOST) return false;
+  const transporter = nodemailer.createTransport({
     host: process.env.SMTP_HOST,
     port: Number(process.env.SMTP_PORT ?? 587),
     secure: process.env.SMTP_SECURE === "true",
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
+    auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
   });
+  const from = process.env.SMTP_FROM ?? process.env.SMTP_USER ?? "noreply@verdictiq.gov.in";
+  await transporter.sendMail({ from, to: payload.to, subject: payload.subject, html: payload.html });
+  return true;
 }
 
 export async function sendEmail(payload: EmailPayload): Promise<void> {
-  const transporter = getTransporter();
+  const hasResend = !!process.env.RESEND_API_KEY;
+  const hasSmtp = !!process.env.SMTP_HOST;
 
-  if (!transporter) {
-    console.info(`[EmailService] No SMTP configured — skipping email to ${payload.to}: ${payload.subject}`);
-    await logEmail(payload.to, payload.subject, "skipped", "No SMTP configuration", payload.relatedCaseId);
+  if (!hasResend && !hasSmtp) {
+    console.info(`[EmailService] No email provider configured — skipping email to ${payload.to}`);
+    await logEmail(payload.to, payload.subject, "skipped", "No email provider configured", payload.relatedCaseId);
     return;
   }
 
   try {
-    const from = process.env.SMTP_FROM ?? process.env.SMTP_USER ?? "noreply@verdictiq.gov.in";
-    await transporter.sendMail({ from, to: payload.to, subject: payload.subject, html: payload.html });
+    // Prefer Resend; fall back to SMTP
+    if (hasResend) {
+      await sendViaResend(payload);
+    } else {
+      await sendViaSmtp(payload);
+    }
     await logEmail(payload.to, payload.subject, "sent", undefined, payload.relatedCaseId);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);

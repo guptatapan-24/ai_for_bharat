@@ -71,13 +71,31 @@ async function getAllAdmins(): Promise<typeof usersTable.$inferSelect[]> {
 }
 
 async function getUsersByDepartment(department: string): Promise<typeof usersTable.$inferSelect[]> {
-  return db.select().from(usersTable).where(eq(usersTable.role, "department_officer"));
+  const allOfficers = await db.select().from(usersTable).where(eq(usersTable.role, "department_officer"));
+  if (!department) return allOfficers;
+
+  // Filter to only users who have subscribed to this department (or have no subscriptions set, defaulting to all)
+  const filtered: typeof usersTable.$inferSelect[] = [];
+  for (const user of allOfficers) {
+    const prefs = await getPreferences(user.id);
+    const subs: string[] = JSON.parse(prefs.departmentSubscriptions ?? "[]");
+    // If user has no subscriptions configured, include them for all departments
+    if (subs.length === 0 || subs.includes(department)) {
+      filtered.push(user);
+    }
+  }
+  return filtered;
 }
 
-async function shouldSendEmail(userId: number, priority: NotificationPriority): Promise<boolean> {
+async function shouldSendEmail(userId: number, priority: NotificationPriority, department?: string): Promise<boolean> {
   const prefs = await getPreferences(userId);
   if (!prefs.emailEnabled) return false;
   if (prefs.urgentOnly && priority !== "critical" && priority !== "high") return false;
+  // If department provided and user has explicit subscriptions, check they match
+  if (department) {
+    const subs: string[] = JSON.parse(prefs.departmentSubscriptions ?? "[]");
+    if (subs.length > 0 && !subs.includes(department)) return false;
+  }
   return true;
 }
 
@@ -149,7 +167,7 @@ export async function notifyDirectiveAssigned(opts: {
       });
     }
 
-    if (await shouldSendEmail(user.id, opts.priority)) {
+    if (await shouldSendEmail(user.id, opts.priority, opts.department)) {
       await sendEmail({
         to: user.email,
         subject: `[${opts.priority.toUpperCase()}] Directive Assigned — ${opts.caseNumber}`,

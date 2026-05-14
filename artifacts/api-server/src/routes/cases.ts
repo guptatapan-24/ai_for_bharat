@@ -365,7 +365,7 @@ Extract all directives from the above excerpt as JSON.`;
 
   const response = await openai.chat.completions.create({
     model: MODEL,
-    max_tokens: 8192,
+    max_completion_tokens: 8192,
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
