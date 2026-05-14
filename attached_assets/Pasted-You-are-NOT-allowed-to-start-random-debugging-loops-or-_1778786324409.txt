@@ -1,0 +1,355 @@
+You are NOT allowed to start random debugging loops or repeated trial-and-error fixes.
+
+FIRST TASK: Stabilize and verify the entire project environment BEFORE debugging the email notification system.
+
+==================================================
+PHASE 1 — PROJECT + ENVIRONMENT STABILIZATION
+=============================================
+
+1. PROJECT UNDERSTANDING
+
+First scan and understand the complete project structure.
+
+Identify:
+
+* frontend framework
+* backend framework
+* database provider
+* ORM
+* authentication provider
+* notification architecture
+* email provider
+* AI integrations
+* upload/storage system
+* environment variable usage
+* workflow/replit setup
+
+Do NOT modify business logic yet.
+
+---
+
+2. ENVIRONMENT + SECRETS VERIFICATION
+
+Verify ALL environment variables and integrations properly.
+
+Check:
+
+* frontend env vars
+* backend env vars
+* database URLs
+* Clerk/Auth keys
+* email provider API keys
+* SMTP credentials
+* upload/storage credentials
+* callback URLs
+* allowed origins
+* API base URLs
+* workflow/replit configs
+* vite configs
+* hardcoded env values
+
+IMPORTANT:
+
+* Detect mismatched frontend/backend auth keys.
+* Detect missing email provider secrets.
+* Detect old hardcoded values in:
+
+  * .replit
+  * workflows
+  * frontend configs
+  * vite configs
+  * build configs
+
+Ensure:
+
+* frontend/backend use SAME auth project
+* backend runtime has correct env injection
+* secrets are accessible during runtime
+
+---
+
+3. DATABASE + BACKEND VERIFICATION
+
+* Start backend properly
+* Verify database connectivity
+* Verify notification tables
+* Verify email_logs table
+* Verify notification CRUD operations
+* Verify backend APIs respond correctly
+
+---
+
+4. FRONTEND ↔ BACKEND ↔ DATABASE CONNECTIVITY
+
+Verify:
+
+* frontend can call backend APIs
+* backend can access database
+* auth/session forwarding works
+* credentials include works where required
+* notification APIs work
+* existing uploads and AI APIs still work
+
+Actually test flows.
+Do NOT assume connectivity.
+
+---
+
+5. AUTH + ROLE VERIFICATION
+
+Verify:
+
+* login/signup flow
+* Clerk/session/auth integration
+* JWT validation
+* protected routes
+* role-based access
+
+Roles:
+
+* ADMIN
+* DEPARTMENT OFFICER
+* VIEWER
+
+Also verify:
+REVIEWER SETTINGS for departmental organizations:
+
+* elevated permissions from admins
+* lower permissions than regular reviewers
+
+---
+
+6. EXISTING FEATURE SAFETY CHECK
+
+Before changing anything verify these systems still work:
+
+* OCR extraction
+* department classification
+* action plan generation
+* uploads
+* AI API calls
+* notification creation
+* dashboard
+* case creation
+* role permissions
+
+DO NOT break working flows.
+
+==================================================
+PHASE 2 — FIX EMAIL NOTIFICATION DELIVERY
+=========================================
+
+Email notifications are implemented but emails are NOT being delivered.
+
+Your task is to diagnose and fix the ENTIRE email notification pipeline properly WITHOUT breaking the existing notification system.
+
+IMPORTANT:
+Do NOT randomly rewrite the notification architecture.
+Do NOT enter infinite debugging loops.
+Root-cause analyze first.
+
+==================================================
+TRACE THE COMPLETE EMAIL FLOW
+=============================
+
+Trace the full flow end-to-end:
+
+Notification Trigger
+→ Notification Service
+→ Email Queue/Dispatcher
+→ Email Template
+→ Email Provider
+→ SMTP/API Request
+→ Delivery Response
+→ Email Logs
+
+Identify EXACTLY where the pipeline is failing.
+
+==================================================
+VERIFY EMAIL PROVIDER SETUP
+===========================
+
+Check which provider is being used:
+
+* Resend
+* Nodemailer
+* SMTP
+* SendGrid
+* Mailtrap
+* Other
+
+Verify:
+
+* API key exists
+* env vars loaded correctly
+* secrets accessible in backend runtime
+* provider initialized correctly
+* sender email/domain verified
+* API requests actually sent
+* no invalid credentials
+* no sandbox restrictions
+* no domain verification issues
+
+Check:
+
+* .env
+* secrets
+* workflow configs
+* backend runtime envs
+* replit secrets
+
+IMPORTANT:
+Detect mismatched or missing env vars.
+
+==================================================
+VERIFY EMAIL DISPATCH EXECUTION
+===============================
+
+Check whether:
+
+* notification trigger fires correctly
+* email dispatch function is actually called
+* async jobs execute correctly
+* queue/background worker runs correctly
+* errors are swallowed silently
+* try/catch hides failures
+* promises fail silently
+* rate limits occur
+
+Add structured logs for:
+
+* notification created
+* email queued
+* email provider request sent
+* provider response received
+* delivery success/failure
+
+==================================================
+VERIFY EMAIL LOGGING SYSTEM
+===========================
+
+Inspect email_logs table.
+
+Check:
+
+* entries created?
+* status values?
+* provider responses?
+* failed reasons?
+* retry attempts?
+
+If logs are missing:
+
+* fix logging architecture.
+
+==================================================
+TEST EMAIL DELIVERY DIRECTLY
+============================
+
+Create a dedicated test route/service:
+
+/test-email
+
+The route should:
+
+1. send a basic email
+2. log provider response
+3. return success/failure clearly
+
+Test:
+
+* plain text email
+* HTML email
+* role-based notification email
+
+IMPORTANT:
+Verify actual inbox delivery.
+Not just API success response.
+
+==================================================
+COMMON FAILURE CHECKS
+=====================
+
+Specifically check for:
+
+1. Unverified sender email
+2. Resend sandbox restrictions
+3. Wrong SMTP port
+4. Missing FROM email
+5. Invalid recipient
+6. Backend env not loaded
+7. Queue worker not running
+8. Async fire-and-forget failures
+9. Domain authentication failure
+10. Emails going to spam
+11. Free-tier provider limitations
+12. Replit secret injection issues
+13. Server restart required after env changes
+14. Background worker crashes
+15. Invalid email template rendering
+
+==================================================
+RETRY + FALLBACK SYSTEM
+=======================
+
+Implement proper:
+
+* retry mechanism
+* exponential backoff
+* failed delivery logging
+* graceful error handling
+
+Ensure:
+notification creation still succeeds even if email delivery fails.
+
+==================================================
+FINAL VERIFICATION
+==================
+
+Before completion verify ALL:
+
+ENVIRONMENT:
+
+* frontend running
+* backend running
+* database connected
+* auth working
+* notification APIs working
+
+EMAIL SYSTEM:
+
+* notification trigger works
+* email dispatch executes
+* provider request succeeds
+* inbox receives email
+* role-based emails work
+* personalized department emails work
+* email_logs update correctly
+* failures logged properly
+
+Test:
+
+* ADMIN notification email
+* DEPARTMENT OFFICER notification email
+* escalation email
+* deadline reminder email
+* OTP email
+
+==================================================
+OUTPUT FORMAT
+=============
+
+At the end provide ONLY:
+
+1. Issues found
+2. Root causes
+3. Exact failing component
+4. Exact fixes applied
+5. Env/config fixes
+6. Files changed
+7. Verification results
+8. Remaining blockers
+
+Do NOT repeatedly retry the same fix.
+Do NOT modify unrelated systems.
+Prioritize root-cause analysis over blind debugging.
