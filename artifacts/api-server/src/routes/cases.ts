@@ -26,7 +26,7 @@ import {
 import { eq, and, or, ilike, desc, asc, sql } from "drizzle-orm";
 import { openai } from "@workspace/integrations-openai-ai-server";
 
-const MODEL = "gpt-5.4";
+const MODEL = "gpt-4.1";
 
 // How many chars roughly correspond to one page in a dense Indian judgment
 const CHARS_PER_PAGE_ESTIMATE = 2000;
@@ -62,6 +62,82 @@ function sanitizeDate(val: string | null | undefined): string | null {
   if (!val) return null;
   const trimmed = val.trim().split("T")[0];
   return /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? trimmed : null;
+}
+
+/**
+ * Resolve a deadline value to a YYYY-MM-DD string.
+ * Accepts:
+ *  - Already-valid YYYY-MM-DD → returned as-is
+ *  - Relative expressions like "3 months", "6 weeks", "90 days", "1 year"
+ *    → computed from anchor date (dateOfOrder or today)
+ *  - Anything else → null
+ */
+function resolveDeadline(
+  val: string | null | undefined,
+  anchorDate: string | null
+): string | null {
+  if (!val) return null;
+  const trimmed = val.trim();
+
+  // Already absolute
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed.split("T")[0])) return trimmed.split("T")[0];
+
+  const anchor = anchorDate ? new Date(anchorDate) : new Date();
+  if (isNaN(anchor.getTime())) return null;
+  const base = new Date(anchor);
+
+  // Match patterns like "3 months", "6 weeks", "90 days", "1 year", "2 years"
+  const numMatch = trimmed.match(/(\d+)\s*(day|week|month|year)/i);
+  if (numMatch) {
+    const n = parseInt(numMatch[1], 10);
+    const unit = numMatch[2].toLowerCase();
+    if (unit.startsWith("day")) base.setDate(base.getDate() + n);
+    else if (unit.startsWith("week")) base.setDate(base.getDate() + n * 7);
+    else if (unit.startsWith("month")) base.setMonth(base.getMonth() + n);
+    else if (unit.startsWith("year")) base.setFullYear(base.getFullYear() + n);
+    return base.toISOString().split("T")[0];
+  }
+
+  return null;
+}
+
+/**
+ * Fuzzy-match an AI-returned department name against the canonical list.
+ * Scoring: exact match > canonical name contained in AI string > AI string tokens in canonical name.
+ * Falls back to "Other / Not Specified" if nothing matches with reasonable confidence.
+ */
+function normalizeDepartment(raw: string): string {
+  if (!raw) return "Other / Not Specified";
+
+  // Exact match
+  if (DEPARTMENT_NAMES.includes(raw)) return raw;
+
+  const lower = raw.toLowerCase().trim();
+
+  // Exact case-insensitive match
+  const exactCI = DEPARTMENT_NAMES.find((d) => d.toLowerCase() === lower);
+  if (exactCI) return exactCI;
+
+  // Score each canonical name against the raw string
+  const scored = DEPARTMENT_NAMES.map((canonical) => {
+    const cl = canonical.toLowerCase();
+    // Token overlap score
+    const rawTokens = new Set(lower.split(/[\s,&\/]+/).filter((t) => t.length > 2));
+    const canTokens = new Set(cl.split(/[\s,&\/]+/).filter((t) => t.length > 2));
+    let overlap = 0;
+    for (const t of rawTokens) {
+      if (canTokens.has(t) || cl.includes(t) || lower.includes(t.slice(0, 5))) overlap++;
+    }
+    const score = canTokens.size > 0 ? overlap / Math.max(rawTokens.size, canTokens.size) : 0;
+    return { canonical, score };
+  });
+
+  scored.sort((a, b) => b.score - a.score);
+  const best = scored[0];
+
+  // Only accept if there's a meaningful match (>30% token overlap)
+  if (best && best.score > 0.3) return best.canonical;
+  return "Other / Not Specified";
 }
 
 const VALID_DIRECTIVE_TYPES = new Set([
@@ -221,62 +297,75 @@ async function extractChunk(
   caseContext: string,
   dateOfOrder: string | null
 ): Promise<ExtractedDirective[]> {
-  const systemPrompt = `You are VerdictIQ, a specialized legal AI for Indian government compliance. You are given a SINGLE EXCERPT from a larger Indian High Court or Supreme Court judgment.
+  const anchorNote = dateOfOrder
+    ? `The date of this court order is ${dateOfOrder}. Use this as the anchor when computing absolute deadlines from relative expressions like "within 3 months", "6 weeks from today", etc. Convert every relative deadline to an absolute YYYY-MM-DD date.`
+    : `No date of order provided. If the AI sees a relative deadline like "3 months", store it literally in deadlineSource and set deadlineInferred=true.`;
 
-Your task: extract EVERY court-ordered directive, compliance obligation, stay order, deadline, and direction present in this excerpt. Be THOROUGH — err on the side of including more directives rather than fewer.
+  const systemPrompt = `You are VerdictIQ, a specialized legal AI for Indian government compliance. Analyze the following excerpt from an Indian court judgment and extract ALL court-ordered directives.
 
-WHAT TO EXTRACT:
-- Explicit orders: "is directed to", "shall", "is ordered to", "we direct", "we order", "ORDERED THAT", "In the result", "Accordingly", "is required to", "must comply", "is hereby directed"
-- Stay orders, interim relief, injunctions
-- Compliance deadlines and timelines ("within X weeks/months")
-- Reporting obligations ("file a compliance report", "submit an affidavit")
-- Directions to any government department, authority, or officer
-- Directions to investigate, take action, or provide relief
-- Contempt warnings and enforcement directions
-- Advisory observations the court expects departments to act upon
+${anchorNote}
 
-WHAT NOT TO EXTRACT:
-- Pure factual recitals or party arguments
-- Background facts not leading to any order
-- General observations without actionable content
+EXTRACT EVERY instance of:
+• Court orders using: "directed to", "shall", "is ordered", "we direct", "we order", "ORDERED THAT", "In the result", "Accordingly", "is required to", "must comply", "is hereby directed", "shall forthwith", "take steps to"
+• Stay/interim orders and injunctions
+• Deadlines, time limits, compliance schedules ("within X weeks/months/days")
+• Directions to file reports, affidavits, status reports
+• Directions to any government body, officer, or department
+• Compensation/payment orders with amounts
+• Investigation/inquiry directions
+• Contempt notices and show-cause directions
 
-RULES:
-- Extract EVERY distinct directive — do not merge or summarize multiple orders into one
-- sourceText must be verbatim from the excerpt (exact quote, up to ~300 chars)
-- If this excerpt contains NO directives, return {"directives": []}
-- Do NOT invent directives not present in the excerpt
-- Page numbers: use the provided start/end range
+DO NOT extract: counsel arguments, factual background, party submissions, case history.
 
-For EACH directive return exactly this JSON shape:
+DEADLINE RULES — CRITICAL:
+• If a deadline is expressed as "within 3 months" and dateOfOrder is known, compute the absolute date (YYYY-MM-DD) and put it in "deadline"
+• If deadline is already an absolute date, convert to YYYY-MM-DD
+• Always fill "deadlineSource" with the exact phrase from the text (e.g., "within three months from the date of this order")
+• Set deadlineInferred=false if taken verbatim, true if computed/estimated
+
+DEPARTMENT RULES — CRITICAL:
+• "responsibleDepartment" MUST be EXACTLY one of the names from the CANONICAL DEPARTMENT LIST
+• Do NOT invent department names; pick the closest canonical match
+• Police/law enforcement → "Police Department (State)"
+• Revenue/land → "Revenue Department (State)"
+• Environmental matters → "Ministry of Environment, Forest & Climate Change"
+• Courts/registry → "High Court Registry"
+• If genuinely none fits → "Other / Not Specified"
+
+CANONICAL DEPARTMENT LIST:
+${DEPARTMENT_NAMES.join("\n")}
+
+For EACH directive return this exact JSON:
 {
-  "type": "compliance_order" | "stay" | "direction" | "limitation_period" | "appeal" | "observation" | "other",
-  "classification": "mandatory" | "advisory",
-  "sourceText": "<verbatim excerpt, ≤300 chars>",
-  "pageNumber": <integer in provided range>,
-  "paragraphRef": "<e.g. Para 12, ¶5, Order I>" | null,
-  "deadline": "<YYYY-MM-DD>" | null,
-  "deadlineInferred": true | false,
-  "deadlineSource": "<e.g. '3 months from date of order'>" | null,
-  "responsibleDepartment": "<EXACTLY one name from the CANONICAL DEPARTMENT LIST>",
-  "actionRequired": "<one clear imperative sentence describing what must be done>",
-  "isNovel": true | false,
-  "confidenceScore": 0.0-1.0
+  "type": "compliance_order"|"stay"|"direction"|"limitation_period"|"appeal"|"observation"|"other",
+  "classification": "mandatory"|"advisory",
+  "sourceText": "<verbatim text from excerpt, max 350 chars>",
+  "pageNumber": <integer>,
+  "paragraphRef": "<Para N or null>",
+  "deadline": "<YYYY-MM-DD or null>",
+  "deadlineInferred": <true|false>,
+  "deadlineSource": "<exact phrase from text or null>",
+  "responsibleDepartment": "<exact canonical name>",
+  "actionRequired": "<clear one-sentence imperative starting with a verb>",
+  "isNovel": <true|false>,
+  "confidenceScore": <0.0-1.0>
 }
 
-CANONICAL DEPARTMENT LIST — choose the closest match; use "Other / Not Specified" only if nothing fits:
-${DEPARTMENT_NAMES.join(" | ")}
+Respond with ONLY a JSON object: {"directives": [...]}
+If no directives found in this excerpt, respond: {"directives": []}`;
 
-Return a JSON object: {"directives": [...]}`;
+  const userPrompt = `CASE: ${caseContext}
 
-  const userPrompt = `CASE CONTEXT:
-${caseContext}
+JUDGMENT EXCERPT (pages ${chunk.estStartPage}–${chunk.estEndPage}):
+---
+${chunk.text}
+---
 
-EXCERPT (estimated pages ${chunk.estStartPage}–${chunk.estEndPage}, chunk ${chunk.index + 1}):
-${chunk.text}`;
+Extract all directives from the above excerpt as JSON.`;
 
   const response = await openai.chat.completions.create({
     model: MODEL,
-    max_completion_tokens: 8192,
+    max_tokens: 8192,
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
@@ -350,7 +439,7 @@ async function extractDirectivesFromFullText(
   },
   fullText: string,
   pageCount: number,
-  logger: { info: (obj: object, msg: string) => void }
+  logger: { info: (obj: object, msg: string) => void; error: (obj: object, msg: string) => void }
 ): Promise<ExtractedDirective[]> {
   const estimatedPages = pageCount > 0 ? pageCount : Math.ceil(fullText.length / CHARS_PER_PAGE_ESTIMATE);
   const chunks = buildChunks(fullText, estimatedPages);
@@ -375,8 +464,8 @@ async function extractDirectivesFromFullText(
       if (result.status === "fulfilled") {
         allDirectives.push(...result.value);
       } else {
-        logger.info(
-          { batchStart: i, error: String(result.reason), stack: result.reason?.stack?.slice(0, 500) },
+        logger.error(
+          { batchStart: i, error: String(result.reason), stack: result.reason?.stack?.slice(0, 800) },
           "Chunk extraction error"
         );
       }
@@ -715,6 +804,20 @@ router.post("/cases/:id/process", requireRole(["admin"]), async (req, res) => {
 
     let inserted = 0;
     for (const d of extracted) {
+      // Normalize department to exact canonical name (fuzzy match)
+      const department = normalizeDepartment(d.responsibleDepartment);
+
+      // Resolve deadline: accept YYYY-MM-DD or relative expressions ("3 months")
+      const resolvedDeadline =
+        resolveDeadline(d.deadline, caseRow.dateOfOrder) ??
+        resolveDeadline(d.deadlineSource, caseRow.dateOfOrder);
+      const deadlineInferred = d.deadlineInferred || (!sanitizeDate(d.deadline) && !!resolvedDeadline);
+
+      // Priority: critical for stays/compliance_orders, else high/medium
+      const priority = d.classification === "mandatory"
+        ? (d.type === "stay" || d.type === "compliance_order" ? "critical" : "high")
+        : "medium";
+
       const [directive] = await db
         .insert(directivesTable)
         .values({
@@ -725,10 +828,10 @@ router.post("/cases/:id/process", requireRole(["admin"]), async (req, res) => {
           sourceText: d.sourceText,
           pageNumber: d.pageNumber,
           paragraphRef: d.paragraphRef ?? null,
-          deadline: sanitizeDate(d.deadline),
-          deadlineInferred: d.deadlineInferred,
+          deadline: resolvedDeadline,
+          deadlineInferred,
           deadlineSource: d.deadlineSource ?? null,
-          responsibleDepartment: d.responsibleDepartment,
+          responsibleDepartment: department,
           actionRequired: d.actionRequired,
           isNovel: d.isNovel,
           confidenceScore: Math.min(1, Math.max(0, d.confidenceScore)),
@@ -741,13 +844,11 @@ router.post("/cases/:id/process", requireRole(["admin"]), async (req, res) => {
         directiveId: directive.id,
         title: d.actionRequired.length > 80 ? d.actionRequired.slice(0, 77) + "..." : d.actionRequired,
         description: d.actionRequired,
-        department: d.responsibleDepartment,
-        priority: d.classification === "mandatory"
-          ? (d.type === "stay" || d.type === "compliance_order" ? "critical" : "high")
-          : "medium",
+        department,
+        priority,
         classification: d.classification,
-        deadline: sanitizeDate(d.deadline),
-        deadlineInferred: d.deadlineInferred,
+        deadline: resolvedDeadline,
+        deadlineInferred,
         status: "pending",
         sourcePageNumber: d.pageNumber,
         sourceText: d.sourceText,
