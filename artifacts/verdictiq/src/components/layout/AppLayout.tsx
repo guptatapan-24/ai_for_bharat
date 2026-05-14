@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { LayoutDashboard, FileText, PlusCircle, LogOut, ChevronUp, Users, Shield } from "lucide-react";
+import { LayoutDashboard, FileText, PlusCircle, LogOut, ChevronUp, Users, Shield, Bell } from "lucide-react";
 import { useUser, useClerk } from "@clerk/react";
 import { Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarFooter } from "@/components/ui/sidebar";
 import {
@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useUserRole } from "@/contexts/UserRoleContext";
+import { NotificationBell } from "@/components/notifications/NotificationBell";
 
 const ROLE_LABELS: Record<string, string> = {
   admin: "Admin",
@@ -30,10 +31,13 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="flex h-screen overflow-hidden w-full">
         <Sidebar className="border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
           <SidebarHeader className="p-4 border-b border-sidebar-border">
-            <h1 className="text-xl font-serif font-bold text-amber-500 tracking-tight flex items-center gap-2">
-              <div className="w-6 h-6 bg-amber-500 rounded flex items-center justify-center text-sidebar font-sans text-xs">V</div>
-              VerdictIQ
-            </h1>
+            <div className="flex items-center justify-between w-full">
+              <h1 className="text-xl font-serif font-bold text-amber-500 tracking-tight flex items-center gap-2">
+                <div className="w-6 h-6 bg-amber-500 rounded flex items-center justify-center text-sidebar font-sans text-xs">V</div>
+                VerdictIQ
+              </h1>
+              <NotificationBell />
+            </div>
           </SidebarHeader>
           <SidebarContent>
             <SidebarMenu className="mt-4 px-2 gap-2">
@@ -73,6 +77,14 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               )}
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={location.startsWith("/notifications")}>
+                  <Link href="/notifications">
+                    <Bell className="mr-2 h-4 w-4" />
+                    Notifications
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
             </SidebarMenu>
           </SidebarContent>
           <SidebarFooter className="p-2 border-t border-sidebar-border">

@@ -2,6 +2,12 @@ import { Router } from "express";
 import { requireRole } from "../middlewares/auth";
 import { db, DEPARTMENT_NAMES } from "@workspace/db";
 import {
+  notifyCaseUploaded,
+  notifyActionPlanGenerated,
+  notifyDirectiveAssigned,
+  notifyCaseStatusUpdated,
+} from "../services/notificationService";
+import {
   casesTable,
   judgmentsTable,
   directivesTable,
@@ -450,6 +456,14 @@ router.post("/cases", requireRole(["admin"]), async (req, res) => {
     description: `Case ${newCase.caseNumber} registered`,
   });
 
+  // Fire-and-forget notification (does not block response)
+  notifyCaseUploaded({
+    caseId: newCase.id,
+    caseNumber: newCase.caseNumber,
+    court: newCase.court,
+    uploadedBy: req.appUser?.fullName ?? req.appUser?.email ?? "Unknown",
+  }).catch(() => {});
+
   return res.status(201).json({
     ...newCase,
     totalDirectives: 0,
@@ -715,6 +729,35 @@ router.post("/cases/:id/process", requireRole(["admin"]), async (req, res) => {
       modelVersion: MODEL,
       pdfHash: existingJudgment.pdfHash,
     });
+
+    // Fire-and-forget: notify action plan generated
+    const uniqueDepts = [...new Set(extracted.map((d) => d.responsibleDepartment))];
+    const mandatoryExtracted = extracted.filter((d) => d.classification === "mandatory");
+    notifyActionPlanGenerated({
+      caseId: caseRow.id,
+      caseNumber: caseRow.caseNumber,
+      court: caseRow.court,
+      totalItems: inserted,
+      mandatoryCount: mandatoryExtracted.length,
+      departments: uniqueDepts,
+    }).catch(() => {});
+
+    // Notify directive assigned per department (fire-and-forget)
+    for (const d of extracted) {
+      notifyDirectiveAssigned({
+        caseId: caseRow.id,
+        caseNumber: caseRow.caseNumber,
+        court: caseRow.court,
+        directiveId: 0,
+        department: d.responsibleDepartment,
+        directiveSummary: d.sourceText.slice(0, 200),
+        actionRequired: d.actionRequired,
+        priority: d.classification === "mandatory"
+          ? (d.type === "stay" || d.type === "compliance_order" ? "critical" : "high")
+          : "medium",
+        deadline: d.deadline,
+      }).catch(() => {});
+    }
 
     return res.json({
       caseId: caseRow.id,

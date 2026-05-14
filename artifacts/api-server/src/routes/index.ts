@@ -9,10 +9,16 @@ import auditRouter from "./audit";
 import uploadRouter from "./upload";
 import usersRouter from "./users";
 import commentsRouter from "./comments";
+import notificationsRouter from "./notifications";
+import otpRouter from "./otp";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
+
+// OTP routes are public (pre-auth)
+router.use(otpRouter);
+
 router.use(requireAuth);
 router.use(ensureUserExists);
 router.use(usersRouter);
@@ -23,5 +29,6 @@ router.use(dashboardRouter);
 router.use(auditRouter);
 router.use(uploadRouter);
 router.use(commentsRouter);
+router.use(notificationsRouter);
 
 export default router;

@@ -8,3 +8,7 @@ export * from "./messages";
 export * from "./users";
 export * from "./case_comments";
 export * from "./role_change_log";
+export * from "./notifications";
+export * from "./notification_preferences";
+export * from "./otp_verifications";
+export * from "./email_logs";

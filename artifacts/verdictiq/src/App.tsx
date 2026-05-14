@@ -15,6 +15,8 @@ import CaseList from "@/pages/cases/index";
 import NewCase from "@/pages/cases/new";
 import CaseDetail from "@/pages/cases/detail";
 import CaseVerify from "@/pages/cases/verify";
+import NotificationsPage from "@/pages/notifications";
+import NotificationPreferencesPage from "@/pages/notifications-preferences";
 
 const queryClient = new QueryClient();
 
@@ -218,6 +220,8 @@ function ProtectedRoutes() {
               <Route path="/cases/:id" component={CaseDetail} />
               <Route path="/cases/:id/verify" component={CaseVerify} />
               <Route path="/admin/users" component={AdminUsers} />
+              <Route path="/notifications" component={NotificationsPage} />
+              <Route path="/notifications/preferences" component={NotificationPreferencesPage} />
               <Route component={NotFound} />
             </Switch>
           </AppLayout>
