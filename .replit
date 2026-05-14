@@ -49,8 +49,9 @@ args = "PORT=18523 BASE_PATH=/ pnpm --filter @workspace/verdictiq run dev"
 waitForPort = 18523
 
 [agent]
-stack = "PNPM_WORKSPACE"
+stack = "BEST_EFFORT_FALLBACK"
 expertMode = true
+integrations = ["javascript_openai_ai_integrations:2.0.0"]
 
 [postMerge]
 path = "scripts/post-merge.sh"

@@ -1,0 +1,421 @@
+You are NOT allowed to start random debugging loops or repeated trial-and-error fixes.
+
+FIRST TASK: Stabilize and verify the entire project environment BEFORE implementing any new feature.
+
+==================================================
+PHASE 1 — PROJECT + ENVIRONMENT STABILIZATION
+=============================================
+
+1. PROJECT UNDERSTANDING
+   First scan and understand the complete project structure.
+
+Identify:
+
+* frontend framework
+* backend framework
+* database provider
+* ORM
+* authentication provider
+* AI integrations
+* upload/storage system
+* email provider setup (if any)
+* notification architecture (if any)
+* role management system
+* environment variable usage
+
+Do NOT modify business logic yet.
+
+---
+
+2. ENVIRONMENT + SECRETS VERIFICATION
+
+Verify ALL environment variables and integrations properly.
+
+Check:
+
+* frontend env vars
+* backend env vars
+* database URLs
+* Clerk/Auth keys
+* AI API keys
+* upload/storage credentials
+* email provider keys
+* callback URLs
+* allowed origins
+* API base URLs
+* workflow/replit configs
+* vite configs
+* hardcoded env values
+
+IMPORTANT:
+
+* Detect mismatched frontend/backend auth keys.
+* Detect old hardcoded keys in:
+
+  * .replit
+  * workflows
+  * frontend configs
+  * vite configs
+  * build configs
+* Ensure frontend and backend use the SAME auth project and SAME database.
+
+---
+
+3. DATABASE + BACKEND VERIFICATION
+
+* Start backend properly
+* Verify database connectivity
+* Run migrations/schema sync if needed
+* Verify CRUD operations
+* Verify APIs respond correctly
+* Verify backend can read/write to DB
+* Verify no connection pooling issues
+
+---
+
+4. FRONTEND ↔ BACKEND ↔ DATABASE CONNECTIVITY
+
+Verify:
+
+* frontend can call backend APIs
+* backend can access database
+* cookies/session are passed correctly
+* credentials include works where needed
+* API base URLs are correct
+* upload APIs work
+* AI APIs work
+
+Actually test flows.
+Do NOT assume connectivity.
+
+---
+
+5. AUTH + ROLE VERIFICATION
+
+Verify:
+
+* login/signup flow
+* Clerk/session/auth integration
+* JWT validation
+* protected routes
+* role-based access
+* cookies/session forwarding
+
+Roles:
+
+* ADMIN
+* DEPARTMENT OFFICER
+* VIEWER
+
+Also verify:
+REVIEWER SETTINGS for departmental organizations:
+
+* elevated permissions from admins
+* lower permissions than regular reviewers
+
+---
+
+6. EXISTING FEATURE SAFETY CHECK
+
+Before implementing anything:
+Verify these existing systems still work:
+
+* OCR extraction
+* department classification
+* action plan generation
+* uploads
+* AI API calls
+* dashboard
+* case creation
+* case filters
+* department badges
+
+DO NOT break working flows.
+
+==================================================
+PHASE 2 — IMPLEMENT ROLE-BASED NOTIFICATION + EMAIL SYSTEM
+==========================================================
+
+Build a production-grade role-based notification and email system integrated with the existing department classification architecture.
+
+IMPORTANT:
+Use modular reusable architecture.
+Do NOT hardcode logic inside routes.
+
+==================================================
+FEATURES TO IMPLEMENT
+=====================
+
+1. ROLE-BASED NOTIFICATIONS
+2. ROLE-BASED EMAIL DELIVERY
+3. PERSONALIZED DEPARTMENT EMAILS
+4. EMAIL OTP VERIFICATION DURING LOGIN
+
+==================================================
+NOTIFICATION SYSTEM REQUIREMENTS
+================================
+
+Implement reusable notification service layer.
+
+Triggers:
+
+1. New case uploaded
+   → notify ADMIN
+
+2. Directive assigned to department
+   → notify DEPARTMENT OFFICER of that department
+
+3. Action plan generated
+   → notify assigned department + ADMIN
+
+4. Case status updated
+   → notify relevant stakeholders
+
+5. Deadline approaching
+   → reminder notification
+
+6. Escalation/overdue directive
+   → high priority notification
+
+Support:
+
+* in-app notifications
+* email notifications
+* future websocket extensibility
+
+==================================================
+DATABASE STRUCTURE
+==================
+
+Create proper normalized schema for:
+
+A. notifications
+
+* id
+* userId
+* caseId
+* directiveId
+* department
+* title
+* message
+* type
+* priority
+* isRead
+* deliveryStatus
+* createdAt
+
+B. notification_preferences
+
+* userId
+* emailEnabled
+* inAppEnabled
+* urgentOnly
+* departmentSubscriptions
+
+C. otp_verifications
+
+* id
+* email
+* otpHash
+* expiresAt
+* attempts
+* verified
+* createdAt
+
+D. email_logs
+
+* recipient
+* subject
+* status
+* providerResponse
+* relatedCaseId
+* createdAt
+
+Add:
+
+* indexes
+* foreign keys
+* validation
+
+==================================================
+EMAIL SYSTEM
+============
+
+Implement centralized reusable email service.
+
+Preferred:
+
+* Resend OR Nodemailer
+* React Email templates if possible
+
+Implement templates for:
+
+* New Directive Assigned
+* Action Plan Generated
+* Deadline Reminder
+* Escalation Alert
+* OTP Verification
+* Login Alert
+
+==================================================
+DEPARTMENT PERSONALIZATION
+==========================
+
+Emails should dynamically personalize based on department classification.
+
+Examples:
+
+* Ministry of Home Affairs
+* Police Department
+* Health Department
+* Revenue Department
+
+Include:
+
+* department name
+* directive summary
+* case metadata
+* priority
+* due date
+* action required
+* department badge/color
+
+Emails should look professional and government-dashboard style.
+
+==================================================
+OTP EMAIL VERIFICATION
+======================
+
+Implement OTP verification during login.
+
+Requirements:
+
+1. User enters email
+2. OTP sent to email
+3. OTP verification required before login success
+4. OTP expiry = 5 mins
+5. Rate limiting
+6. Retry limit
+7. Secure OTP hashing
+8. Prevent OTP reuse
+9. Prevent brute force attacks
+
+IMPORTANT:
+Do NOT break existing Clerk/session/auth flow.
+
+If Clerk already supports email OTP:
+
+* integrate properly with existing auth
+
+Otherwise:
+
+* build secure middleware layer cleanly
+
+==================================================
+FRONTEND UI
+===========
+
+Implement:
+
+A. Notification Bell
+
+* unread count
+* dropdown
+* mark as read
+* priority indicators
+
+B. Notification Center
+
+* filters
+* pagination
+* department filter
+* read/unread tabs
+
+C. OTP Verification UI
+
+* resend timer
+* loading states
+* error states
+
+D. Notification Preferences
+
+* email toggles
+* urgent-only mode
+* department subscriptions
+
+==================================================
+SECURITY + STABILITY
+====================
+
+Verify:
+
+* viewers cannot access admin notifications
+* department officers only access their department notifications
+* email secrets protected
+* OTP securely stored
+* no sensitive logs exposed
+
+Add:
+
+* validation
+* retry handling
+* graceful failures
+* transaction safety
+
+Avoid:
+
+* blocking API responses with email sending
+* duplicate notifications
+* unnecessary rebuild loops
+* repeated debugging attempts
+* modifying unrelated systems
+
+==================================================
+FINAL VERIFICATION
+==================
+
+Before completion verify ALL of these:
+
+ENVIRONMENT:
+
+* frontend running
+* backend running
+* database connected
+* APIs working
+* auth working
+* uploads working
+* AI APIs working
+
+FEATURES:
+
+* ADMIN notifications
+* DEPARTMENT OFFICER notifications
+* personalized emails
+* OTP send flow
+* OTP verify flow
+* expired OTP handling
+* wrong OTP handling
+* unread counts
+* notification permissions
+* email logs
+
+==================================================
+OUTPUT FORMAT
+=============
+
+At the end provide ONLY:
+
+1. Issues found
+2. Root causes
+3. Exact fixes applied
+4. Schema changes
+5. Services added
+6. Routes added
+7. UI components added
+8. Security protections added
+9. Verification results
+10. Remaining blockers
+
+Do NOT enter infinite debugging loops.
+Do NOT repeatedly retry the same failed solution.
+Prioritize root-cause analysis over blind debugging.
