@@ -46,6 +46,7 @@ Four-step judgment lifecycle:
 - Tailwind v4: `@layer theme, base, clerk, components, utilities;` in index.css; `tailwindcss({ optimize: false })` in vite.config.ts
 - User profile + role badge in sidebar footer via `useUser` + `useClerk` + `useUserRole` hooks
 - CRITICAL: `VITE_CLERK_PUBLISHABLE_KEY` used directly (not via publishableKeyFromHost) to avoid Clerk loading from Replit dev domain proxy
+- CRITICAL: `app.ts` backend `clerkMiddleware` must use `{ publishableKey: process.env.CLERK_PUBLISHABLE_KEY, secretKey: process.env.CLERK_SECRET_KEY }` directly — do NOT use `publishableKeyFromHost(host, fallback)` as it derives a wrong key from the Replit domain and causes all API requests to return 401
 
 ## RBAC
 
