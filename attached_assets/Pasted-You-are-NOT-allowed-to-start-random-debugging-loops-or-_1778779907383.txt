@@ -1,0 +1,158 @@
+You are NOT allowed to start random debugging loops or repeated trial-and-error fixes.
+
+FIRST TASK: Stabilize and verify the entire project environment BEFORE making any feature changes.
+
+Follow these steps STRICTLY and in order:
+
+1. PROJECT UNDERSTANDING
+
+* Scan the complete project structure first.
+* Identify:
+
+  * frontend framework
+  * backend framework
+  * database provider
+  * auth provider
+  * AI API integrations
+  * upload/storage system
+  * environment variable usage
+* Do NOT modify business logic yet.
+
+2. ENVIRONMENT + SECRETS VERIFICATION
+   Check and verify ALL environment variables and connections:
+
+* frontend env vars
+* backend env vars
+* database URLs
+* API keys
+* Clerk/Auth keys
+* AI API keys
+* upload/storage credentials
+* CORS configuration
+* callback URLs
+* allowed origins
+
+IMPORTANT:
+
+* Detect mismatched keys between frontend and backend.
+* Detect old hardcoded keys in:
+
+  * .replit
+  * vite config
+  * frontend envs
+  * workflow configs
+  * build configs
+* Ensure frontend and backend use the SAME auth project and SAME database.
+
+3. DATABASE SETUP
+
+* Start and verify database connectivity.
+* Run migrations/schema sync if required.
+* Verify tables exist.
+* Verify CRUD operations work.
+* Verify backend can read/write properly.
+* Check for connection pool or URL issues.
+
+4. FRONTEND ↔ BACKEND ↔ DATABASE CONNECTIVITY
+   Verify ALL integrations end-to-end:
+
+* frontend can call backend APIs
+* backend can access database
+* auth tokens/session are passed correctly
+* cookies/credentials work correctly
+* API base URLs are correct
+* upload endpoints work
+* AI endpoints work
+
+IMPORTANT:
+Do NOT assume connectivity.
+Actually test every major flow.
+
+5. AUTH + SESSION VALIDATION
+   Check:
+
+* login/signup flow
+* Clerk/session/auth integration
+* JWT validation
+* protected routes
+* role-based access
+* cookies/session forwarding
+* credentials: include where needed
+
+Specifically verify:
+ROLES:
+
+* ADMIN
+* DEPARTMENT OFFICER
+* VIEWER
+
+Also verify:
+REVIEWER SETTINGS for departmental organizations:
+
+* elevated permissions from admins
+* lower permissions than regular reviewers
+
+6. UPLOAD + AI API VALIDATION
+   Test:
+
+* file uploads
+* storage access
+* AI API calls
+* API rate limits
+* streaming responses if used
+* error handling
+* timeout handling
+
+7. DEBUGGING RULES
+
+* Do NOT repeatedly regenerate the same fix.
+* Do NOT enter infinite debugging loops.
+* Before changing code:
+
+  * identify root cause
+  * explain exact issue
+  * explain exact fix
+* Avoid unnecessary package reinstalls.
+* Avoid unnecessary rebuilds/restarts.
+* Avoid changing unrelated files.
+
+8. FINAL VERIFICATION
+   Before saying "done", verify:
+
+* frontend loads successfully
+* backend runs successfully
+* database connected successfully
+* authentication works
+* protected APIs work
+* uploads work
+* AI APIs work
+* role permissions work
+* no 401/403/auth mismatch issues
+* no broken environment variables
+
+9. OUTPUT FORMAT
+   At the end provide ONLY:
+
+* Issues found
+* Root causes
+* Exact fixes applied
+* Remaining blockers (if any)
+* Files changed
+* Verification results
+
+Do NOT keep iterating forever.
+Do NOT repeatedly retry the same failed solution.
+Prioritize root-cause analysis over blind debugging.
+
+Current recurring issues previously observed:
+
+* frontend/backend auth key mismatch
+* Clerk publishable vs secret key mismatch
+* old hardcoded env vars in .replit/workflows
+* frontend session not passed to backend
+* 401 auth loops
+* upload failures
+* AI API failures
+* environment conflicts after project import/fork
+
+Stabilize the environment first. Feature development comes AFTER successful verification.

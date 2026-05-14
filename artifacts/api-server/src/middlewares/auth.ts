@@ -65,7 +65,7 @@ export const ensureUserExists = async (
       .filter(Boolean)
       .join(" ") || null;
 
-    const [newUser] = await db
+    const [inserted] = await db
       .insert(usersTable)
       .values({
         clerkId: auth.userId,
@@ -73,7 +73,16 @@ export const ensureUserExists = async (
         fullName,
         role: isFirst ? "admin" : "viewer",
       })
+      .onConflictDoNothing()
       .returning();
+
+    const newUser = inserted ?? await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.clerkId, auth.userId))
+      .then((r) => r[0]);
+
+    if (!newUser) return next(new Error("Failed to provision user"));
 
     req.appUser = {
       id: newUser.id,
