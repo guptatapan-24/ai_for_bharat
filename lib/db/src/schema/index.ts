@@ -1,6 +1,7 @@
 export * from "./cases";
 export * from "./judgments";
 export * from "./directives";
+export * from "./directive_translations";
 export * from "./action_items";
 export * from "./audit_log";
 export * from "./conversations";

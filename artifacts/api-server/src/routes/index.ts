@@ -11,6 +11,7 @@ import usersRouter from "./users";
 import commentsRouter from "./comments";
 import notificationsRouter from "./notifications";
 import otpRouter from "./otp";
+import translationsRouter from "./translations";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(auditRouter);
 router.use(uploadRouter);
 router.use(commentsRouter);
 router.use(notificationsRouter);
+router.use(translationsRouter);
 
 export default router;

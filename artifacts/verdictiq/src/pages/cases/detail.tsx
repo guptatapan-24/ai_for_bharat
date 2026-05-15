@@ -1,6 +1,7 @@
 import { useParams, Link, useLocation } from "wouter";
 import { useState, useRef, useCallback } from "react";
 import { useUserRole } from "@/contexts/UserRoleContext";
+import { useLanguage, LANGUAGE_OPTIONS, type UILanguage } from "@/contexts/LanguageContext";
 import { 
   useGetCase, 
   getGetCaseQueryKey, 
@@ -29,7 +30,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ArrowLeft, CheckCircle2, Clock, Cpu, FileText, Loader2, Upload, ShieldAlert, History, Calendar, AlertTriangle, ScanLine, FileCheck, Trash2, RefreshCw, MessageSquare, Download, Filter } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Clock, Cpu, FileText, Loader2, Upload, ShieldAlert, History, Calendar, AlertTriangle, ScanLine, FileCheck, Trash2, RefreshCw, MessageSquare, Download, Filter, Languages } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
@@ -140,6 +141,42 @@ export default function CaseDetail() {
     const file = e.dataTransfer.files[0];
     if (file) handleUploadFile(file);
   }, [handleUploadFile]);
+
+  const { language, setLanguage } = useLanguage();
+  const [translations, setTranslations] = useState<Map<number, { translatedText: string; translatedSourceText: string | null }>>(new Map());
+  const [isTranslating, setIsTranslating] = useState(false);
+
+  const handleTranslate = useCallback(async (lang: UILanguage) => {
+    if (lang === "en-IN") {
+      setLanguage("en-IN");
+      return;
+    }
+    setLanguage(lang);
+    if (!directives || !directives.length) return;
+    setIsTranslating(true);
+    try {
+      const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+      const res = await fetch(`${base}/api/cases/${caseId}/directives/translate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ language: lang }),
+      });
+      if (!res.ok) throw new Error("Translation failed");
+      const data: { directiveId: number; translatedText: string | null; translatedSourceText: string | null }[] = await res.json();
+      const map = new Map<number, { translatedText: string; translatedSourceText: string | null }>();
+      for (const item of data) {
+        if (item.translatedText) {
+          map.set(item.directiveId, { translatedText: item.translatedText, translatedSourceText: item.translatedSourceText ?? null });
+        }
+      }
+      setTranslations(map);
+    } catch {
+      toast({ title: "Translation Failed", description: "Could not translate directives. Please try again.", variant: "destructive" });
+      setLanguage("en-IN");
+    } finally {
+      setIsTranslating(false);
+    }
+  }, [caseId, directives, setLanguage, toast]);
 
   const [, navigate] = useLocation();
   const { isAdmin, isReviewer } = useUserRole();
@@ -503,11 +540,29 @@ export default function CaseDetail() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="flex justify-between items-center mb-6">
+                  <div className="flex flex-wrap justify-between items-center mb-6 gap-3">
                     <h3 className="text-lg font-semibold">Extracted Directives</h3>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">{caseData.pendingVerificationCount || 0} Pending Review</Badge>
                       <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">{caseData.verifiedCount || 0} Verified</Badge>
+                      <div className="flex items-center gap-1.5 ml-2 border rounded-lg p-0.5 bg-muted/30">
+                        <Languages className="w-3.5 h-3.5 text-muted-foreground ml-1.5" />
+                        {LANGUAGE_OPTIONS.map((opt) => (
+                          <button
+                            key={opt.code}
+                            onClick={() => handleTranslate(opt.code)}
+                            disabled={isTranslating}
+                            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
+                              language === opt.code
+                                ? "bg-background shadow-sm text-foreground border"
+                                : "text-muted-foreground hover:text-foreground"
+                            }`}
+                          >
+                            {opt.nativeLabel}
+                          </button>
+                        ))}
+                        {isTranslating && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground mr-1.5" />}
+                      </div>
                     </div>
                   </div>
 
@@ -515,42 +570,92 @@ export default function CaseDetail() {
                     <Skeleton className="h-40 w-full" />
                   ) : directives && directives.length > 0 ? (
                     <div className="space-y-4">
-                      {directives.map((directive) => (
-                        <Card key={directive.id} className={`overflow-hidden ${directive.verificationStatus === 'pending' ? 'border-amber-200 bg-amber-50/10' : ''}`}>
-                          <div className={`h-1 w-full ${directive.classification === 'mandatory' ? 'bg-red-500' : 'bg-blue-500'}`} />
-                          <CardContent className="p-5">
-                            <div className="flex justify-between items-start mb-3">
-                              <div className="flex gap-2 items-center">
-                                <Badge variant={directive.classification === 'mandatory' ? 'destructive' : 'secondary'} className="uppercase text-[10px]">
-                                  {directive.classification}
-                                </Badge>
-                                <span className="text-sm font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded">
-                                  Page {directive.pageNumber}
-                                </span>
+                      {directives.map((directive) => {
+                        const translation = translations.get(directive.id);
+                        const showTranslation = language !== "en-IN" && !!translation;
+                        const langFont = language === "kn-IN"
+                          ? "'Noto Sans Kannada', sans-serif"
+                          : language === "hi-IN"
+                          ? "'Noto Sans Devanagari', sans-serif"
+                          : undefined;
+                        return (
+                          <Card key={directive.id} className={`overflow-hidden ${directive.verificationStatus === 'pending' ? 'border-amber-200 bg-amber-50/10' : ''}`}>
+                            <div className={`h-1 w-full ${directive.classification === 'mandatory' ? 'bg-red-500' : 'bg-blue-500'}`} />
+                            <CardContent className="p-5">
+                              <div className="flex justify-between items-start mb-3">
+                                <div className="flex gap-2 items-center">
+                                  <Badge variant={directive.classification === 'mandatory' ? 'destructive' : 'secondary'} className="uppercase text-[10px]">
+                                    {directive.classification}
+                                  </Badge>
+                                  <span className="text-sm font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded">
+                                    Page {directive.pageNumber}
+                                  </span>
+                                  {showTranslation && (
+                                    <span className="text-[10px] font-medium text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded uppercase tracking-wide">
+                                      {LANGUAGE_OPTIONS.find(l => l.code === language)?.label}
+                                    </span>
+                                  )}
+                                  {language !== "en-IN" && !translation && !isTranslating && (
+                                    <span className="text-[10px] font-medium text-muted-foreground bg-muted/60 border px-1.5 py-0.5 rounded uppercase tracking-wide">
+                                      EN (no translation)
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 text-sm">
+                                  {directive.verificationStatus === 'pending' ? (
+                                    <span className="flex items-center text-amber-600 font-medium text-xs bg-amber-100 px-2 py-1 rounded-full"><Clock className="w-3 h-3 mr-1" /> Pending</span>
+                                  ) : (
+                                    <span className="flex items-center text-emerald-600 font-medium text-xs bg-emerald-100 px-2 py-1 rounded-full"><CheckCircle2 className="w-3 h-3 mr-1" /> Verified</span>
+                                  )}
+                                </div>
                               </div>
-                              <div className="flex items-center gap-2 text-sm">
-                                {directive.verificationStatus === 'pending' ? (
-                                  <span className="flex items-center text-amber-600 font-medium text-xs bg-amber-100 px-2 py-1 rounded-full"><Clock className="w-3 h-3 mr-1" /> Pending</span>
-                                ) : (
-                                  <span className="flex items-center text-emerald-600 font-medium text-xs bg-emerald-100 px-2 py-1 rounded-full"><CheckCircle2 className="w-3 h-3 mr-1" /> Verified</span>
-                                )}
+
+                              {showTranslation && translation.translatedSourceText ? (
+                                <div className="space-y-1.5 mb-3">
+                                  <p
+                                    className="text-sm text-foreground font-medium italic border-l-2 pl-3 py-1"
+                                    style={{ fontFamily: langFont }}
+                                  >
+                                    "{translation.translatedSourceText}"
+                                  </p>
+                                  <details className="group">
+                                    <summary className="text-xs text-muted-foreground cursor-pointer select-none list-none flex items-center gap-1 pl-3 hover:text-foreground">
+                                      <span className="group-open:hidden">▶ Original (English)</span>
+                                      <span className="hidden group-open:inline">▼ Original (English)</span>
+                                    </summary>
+                                    <p className="text-xs text-muted-foreground italic border-l-2 pl-3 py-1 mt-1">"{directive.sourceText}"</p>
+                                  </details>
+                                </div>
+                              ) : (
+                                <p className="text-sm text-foreground font-medium mb-3 italic border-l-2 pl-3 py-1">"{directive.sourceText}"</p>
+                              )}
+
+                              <div className="grid grid-cols-2 gap-4 text-sm mt-4 bg-muted/40 p-3 rounded">
+                                <div>
+                                  <span className="text-muted-foreground block text-xs uppercase font-semibold tracking-wider mb-1">Action Required</span>
+                                  {showTranslation ? (
+                                    <div className="space-y-0.5">
+                                      <span
+                                        className="font-medium block"
+                                        style={{ fontFamily: langFont }}
+                                      >
+                                        {translation.translatedText}
+                                      </span>
+                                      <span className="text-xs text-muted-foreground block">{directive.actionRequired}</span>
+                                    </div>
+                                  ) : (
+                                    <span className="font-medium">{directive.actionRequired}</span>
+                                  )}
+                                </div>
+                                <div>
+                                  <span className="text-muted-foreground block text-xs uppercase font-semibold tracking-wider">Department</span>
+                                  <DepartmentBadge name={directive.responsibleDepartment} />
+                                </div>
                               </div>
-                            </div>
-                            <p className="text-sm text-foreground font-medium mb-3 italic border-l-2 pl-3 py-1">"{directive.sourceText}"</p>
-                            
-                            <div className="grid grid-cols-2 gap-4 text-sm mt-4 bg-muted/40 p-3 rounded">
-                              <div>
-                                <span className="text-muted-foreground block text-xs uppercase font-semibold tracking-wider">Action Required</span>
-                                <span className="font-medium">{directive.actionRequired}</span>
-                              </div>
-                              <div>
-                                <span className="text-muted-foreground block text-xs uppercase font-semibold tracking-wider">Department</span>
-                                <DepartmentBadge name={directive.responsibleDepartment} />
-                              </div>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
+                            </CardContent>
+                          </Card>
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="text-center py-8 text-muted-foreground">No directives found.</div>

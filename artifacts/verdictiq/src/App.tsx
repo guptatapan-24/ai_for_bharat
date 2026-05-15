@@ -7,6 +7,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppLayout } from "@/components/layout/AppLayout";
 import { UserRoleProvider } from "@/contexts/UserRoleContext";
+import { LanguageProvider } from "@/contexts/LanguageContext";
 import AdminUsers from "@/pages/admin/users";
 import NotFound from "@/pages/not-found";
 import Dashboard from "@/pages/dashboard";
@@ -210,19 +211,21 @@ function ProtectedRoutes() {
     <>
       <Show when="signed-in">
         <UserRoleProvider>
-          <AppLayout>
-            <Switch>
-              <Route path="/dashboard" component={Dashboard} />
-              <Route path="/cases" component={CaseList} />
-              <Route path="/cases/new" component={NewCase} />
-              <Route path="/cases/:id" component={CaseDetail} />
-              <Route path="/cases/:id/verify" component={CaseVerify} />
-              <Route path="/admin/users" component={AdminUsers} />
-              <Route path="/notifications" component={NotificationsPage} />
-              <Route path="/notifications/preferences" component={NotificationPreferencesPage} />
-              <Route component={NotFound} />
-            </Switch>
-          </AppLayout>
+          <LanguageProvider>
+            <AppLayout>
+              <Switch>
+                <Route path="/dashboard" component={Dashboard} />
+                <Route path="/cases" component={CaseList} />
+                <Route path="/cases/new" component={NewCase} />
+                <Route path="/cases/:id" component={CaseDetail} />
+                <Route path="/cases/:id/verify" component={CaseVerify} />
+                <Route path="/admin/users" component={AdminUsers} />
+                <Route path="/notifications" component={NotificationsPage} />
+                <Route path="/notifications/preferences" component={NotificationPreferencesPage} />
+                <Route component={NotFound} />
+              </Switch>
+            </AppLayout>
+          </LanguageProvider>
         </UserRoleProvider>
       </Show>
       <Show when="signed-out">
