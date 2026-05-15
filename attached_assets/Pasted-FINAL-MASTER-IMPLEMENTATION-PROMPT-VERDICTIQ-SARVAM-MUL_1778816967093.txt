@@ -1,0 +1,418 @@
+FINAL MASTER IMPLEMENTATION PROMPT
+VERDICTIQ + SARVAM MULTILINGUAL DIRECTIVE TRANSLATION SYSTEM
+(KANNADA PRIORITY)
+
+You are a senior production-grade full-stack AI systems engineer.
+
+You are working on an EXISTING monorepo called VerdictIQ.
+
+IMPORTANT:
+DO NOT rewrite the architecture.
+DO NOT redesign the frontend.
+DO NOT touch unrelated features.
+DO NOT break voice assistant.
+DO NOT break Supabase persistence.
+DO NOT break Clerk auth.
+DO NOT break existing AI analysis pipeline.
+DO NOT modify working routes unnecessarily.
+DO NOT replace existing business logic.
+DO NOT generate placeholder implementations.
+DO NOT create fake APIs.
+DO NOT massively refactor files.
+
+Your ONLY goal:
+Implement a production-grade multilingual directive translation system using Sarvam AI Translation APIs.
+
+==================================================
+PRIMARY OBJECTIVE
+The application currently extracts directives and case intelligence from uploaded PDFs.
+
+Now implement:
+REAL-TIME MULTILINGUAL DIRECTIVE TRANSLATION
+
+The extracted directives must be translatable from:
+
+English → Kannada (TOP PRIORITY)
+English → Hindi
+The translation must:
+
+be accurate
+preserve meaning
+preserve legal/compliance terminology
+support human-in-the-loop review
+support side-by-side verification
+feel seamless and professional
+==================================================
+MOST IMPORTANT REQUIREMENTS
+Kannada is TOP PRIORITY.
+Translation quality matters more than flashy UI.
+MUST minimize costs.
+MUST use Sarvam AI Translation APIs.
+MUST preserve original English text.
+MUST NOT overwrite source directives.
+MUST NOT break existing workflows.
+MUST integrate surgically into existing architecture.
+==================================================
+MANDATORY SARVAM REQUIREMENTS
+Use Sarvam Translation APIs ONLY.
+
+Reference:
+https://docs.sarvam.ai/api-reference-docs/api-guides-tutorials/text-processing/translation
+
+==================================================
+COST OPTIMIZATION REQUIREMENTS
+VERY IMPORTANT:
+Minimize costs aggressively.
+
+DO NOT repeatedly translate the same directives.
+
+IMPLEMENT TRANSLATION CACHING.
+
+==================================================
+MANDATORY TRANSLATION STRATEGY
+The system must:
+
+STEP 1:
+Extract directives normally from PDFs.
+
+STEP 2:
+Store ORIGINAL English directives permanently.
+
+STEP 3:
+Translate ONLY when requested.
+
+STEP 4:
+Cache translated results inside DB.
+
+STEP 5:
+Reuse cached translations instead of re-calling APIs.
+
+This is CRITICAL for:
+
+reducing Sarvam API costs
+reducing latency
+scaling demo usage
+improving responsiveness
+==================================================
+IMPORTANT IMPLEMENTATION DECISION
+DO NOT auto-translate every directive immediately after upload.
+
+That wastes money.
+
+Instead:
+Use ON-DEMAND translation.
+
+Meaning:
+
+User clicks Kannada
+THEN translation happens
+Translation gets cached
+Future requests reuse cached version
+This is the MOST cost-efficient architecture.
+
+==================================================
+SUPPORTED LANGUAGES
+Primary:
+
+Kannada
+Secondary:
+
+Hindi
+Source language:
+
+English
+==================================================
+REQUIRED FRONTEND EXPERIENCE
+VERY IMPORTANT:
+Implement a GLOBAL LANGUAGE SWITCHER.
+
+Example:
+[ English ] [ ಕನ್ನಡ ] [ हिन्दी ]
+
+This switcher should:
+
+instantly switch ALL directives together
+preserve layout
+preserve formatting
+preserve numbering/bullets
+preserve directive ordering
+==================================================
+HUMAN-IN-THE-LOOP REVIEW REQUIREMENTS
+VERY IMPORTANT:
+Reviewers MUST be able to compare translations.
+
+Implement:
+SIDE-BY-SIDE REVIEW MODE.
+
+Example:
+
+English
+"Submit compliance report before 5 PM."
+
+Kannada
+"ಸಂಜೆ 5 ಗಂಟೆಯೊಳಗೆ ಅನುಸರಣೆ ವರದಿಯನ್ನು ಸಲ್ಲಿಸಿ."
+
+This is CRITICAL for:
+
+trust
+translation verification
+judge demonstrations
+accessibility
+legal accuracy
+==================================================
+MANDATORY UI REQUIREMENTS
+DO NOT redesign existing pages.
+
+Instead:
+ADD lightweight translation UI enhancements.
+
+Add:
+
+language toggle
+translated text containers
+side-by-side review mode
+translation loading indicators
+translation status badges
+==================================================
+FRONTEND FONT + RENDERING REQUIREMENTS
+VERY IMPORTANT:
+Kannada and Hindi MUST render correctly.
+
+Ensure:
+
+proper Unicode handling
+UTF-8 everywhere
+frontend supports Kannada rendering
+no broken glyphs
+no encoding corruption
+Recommended:
+Use fonts supporting Kannada + Hindi properly.
+
+Suggested:
+
+Noto Sans Kannada
+Noto Sans Devanagari
+Implement safely WITHOUT redesigning existing UI.
+
+==================================================
+DATABASE REQUIREMENTS
+Reuse EXISTING Supabase + Drizzle architecture.
+
+DO NOT redesign schema unnecessarily.
+
+Add translation persistence cleanly.
+
+==================================================
+MANDATORY TRANSLATION STORAGE STRATEGY
+DO NOT overwrite original directives.
+
+Instead:
+Store translations separately.
+
+Recommended structure:
+
+directive_translations
+
+id
+directive_id
+language_code
+translated_text
+created_at
+updated_at
+This enables:
+
+caching
+future expansion
+side-by-side review
+version safety
+==================================================
+MANDATORY TRANSLATION FLOW
+User uploads PDF
+Existing extraction pipeline runs
+English directives stored
+User clicks Kannada/Hindi
+Backend checks cached translation
+If translation exists:
+return cached version
+Else:
+call Sarvam Translation API
+Save translated result
+Return translated directives
+Frontend updates instantly
+==================================================
+MANDATORY SARVAM TRANSLATION SERVICE
+Create dedicated translation service.
+
+Example:
+artifacts/api-server/src/services/sarvam-translation.ts
+
+Requirements:
+
+typed responses
+robust error handling
+caching support
+language mapping
+batch translation support
+==================================================
+IMPORTANT PERFORMANCE REQUIREMENTS
+Translation must feel FAST.
+
+Implement:
+
+batch translation requests
+async loading
+optimistic UI updates
+translation caching
+==================================================
+MANDATORY BATCHING REQUIREMENTS
+DO NOT translate directives one-by-one unnecessarily.
+
+Batch translate multiple directives together when possible.
+
+This reduces:
+
+API calls
+latency
+costs
+==================================================
+LANGUAGE CODE REQUIREMENTS
+Ensure proper Sarvam language codes.
+
+Use:
+
+Kannada → kn-IN
+Hindi → hi-IN
+English → en-IN
+==================================================
+IMPORTANT QUALITY REQUIREMENTS
+Translation must preserve:
+
+directive meaning
+urgency
+legal terminology
+compliance wording
+dates
+numbers
+officer names
+case references
+DO NOT over-simplify.
+
+==================================================
+SPECIAL UX FEATURE (IMPORTANT)
+Implement:
+"Hover To Compare"
+
+Meaning:
+When viewing Kannada/Hindi translation:
+hovering or clicking shows original English beneath.
+
+This massively improves:
+
+trust
+usability
+human review
+legal verification
+==================================================
+ANOTHER IMPORTANT UX FEATURE
+Add:
+Translation confidence/status indicator.
+
+Example:
+
+Translated
+Cached Translation
+Original English
+Translation Loading...
+This helps judges understand the system.
+
+==================================================
+IMPORTANT ERROR HANDLING
+Handle:
+
+failed translations
+API timeouts
+unsupported language
+malformed directives
+empty directives
+rate limits
+network failures
+Fallback:
+show original English safely.
+
+==================================================
+SECURITY REQUIREMENTS
+VERY IMPORTANT:
+
+NEVER expose Sarvam API key
+ALL translation requests backend-only
+sanitize translation inputs
+validate directive ownership/access
+==================================================
+DO NOT BREAK ANYTHING
+MOST IMPORTANT:
+DO NOT MODIFY:
+
+voice assistant
+Clerk auth
+Supabase logic
+PDF extraction pipeline
+AI summarization pipeline
+existing dashboard architecture
+existing upload flow
+ONLY ADD TRANSLATION SUPPORT CLEANLY.
+
+==================================================
+EXPECTED FILES TO TOUCH
+Likely:
+
+translation service
+translation DB schema
+directives UI component
+API route additions
+frontend language toggle
+translation hooks/utilities
+DO NOT massively refactor.
+
+==================================================
+FINAL REQUIRED DELIVERABLES
+After implementation provide:
+
+COMPLETE FILE TREE OF CHANGES
+ALL FILES MODIFIED
+ALL NEW FILES CREATED
+EXACT DB CHANGES
+EXACT CACHING STRATEGY
+EXACT COST OPTIMIZATION STRATEGY
+EXACT SARVAM API FLOW
+EXACT LANGUAGE SWITCHING FLOW
+EXACT SIDE-BY-SIDE REVIEW FLOW
+EXACT FONT/UNICODE FIXES
+TESTING INSTRUCTIONS
+SAMPLE TRANSLATION OUTPUTS
+HOW TO VERIFY KANNADA RENDERING
+HOW TO VERIFY CACHED TRANSLATIONS
+==================================================
+FINAL OBJECTIVE
+The final system must feel like:
+
+A REAL MULTILINGUAL GOVERNMENT INTELLIGENCE PLATFORM.
+
+The user should:
+
+upload English PDFs
+extract directives
+instantly switch to Kannada/Hindi
+compare translations confidently
+review directives seamlessly
+trust the translations
+The experience must feel:
+
+professional
+polished
+multilingual
+India-first
+accessibility-focused
+government-grade
+hackathon-demo ready
+MOST IMPORTANT:
+Kannada/Hindi translation quality and usability MUST feel exceptional.
