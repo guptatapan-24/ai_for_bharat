@@ -366,7 +366,7 @@ Extract all directives from the above excerpt as JSON.`;
   const response = await openai.chat.completions.create({
     model: MODEL,
     temperature: 0,
-    max_completion_tokens: 16384,
+    max_tokens: 16384,
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt },
@@ -413,7 +413,7 @@ Return a JSON object: {"directives": [...]}.`;
 
   const response = await openai.chat.completions.create({
     model: MODEL,
-    max_completion_tokens: 8192,
+    max_tokens: 8192,
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: `Analyze this case and generate plausible directives:\n\n${caseContext}` },

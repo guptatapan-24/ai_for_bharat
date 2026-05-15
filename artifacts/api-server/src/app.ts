@@ -37,6 +37,19 @@ app.use(cors({ credentials: true, origin: true }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Intercept Clerk's session-refresh redirect handshake: this API server never
+// serves HTML, so any redirect (307) Clerk issues should become a 401 JSON
+// response instead. Without this, stale session cookies from a prior Clerk
+// instance cause an infinite redirect loop in the API server logs.
+app.use((_req, res, next) => {
+  const original = res.redirect.bind(res);
+  (res as any).redirect = (...args: Parameters<typeof original>) => {
+    if (res.headersSent) return;
+    res.status(401).json({ error: "Unauthorized" });
+  };
+  next();
+});
+
 // Use env-var keys directly — publishableKeyFromHost derives a wrong key
 // from the Replit domain and breaks session verification in dev.
 app.use(
